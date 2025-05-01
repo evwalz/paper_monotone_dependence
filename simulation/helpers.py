@@ -655,4 +655,137 @@ def cma_stat_test(y, x ,conf_level = 0.95):
     
         return test_multiple(cmas = cma_pd, differences = diff_pd, covariance = S, global_z = z, global_p = p)
     
+
+def one_dim_test_continuous(y_rank, x_rank):
+    N = len(y_rank)
+
+    zeta_3Y = 0#zeta_fun(y_rank)
+    k_zeta = prob_y(y_rank)**2 - zeta_3Y
+    sigma_zeta = 9*np.mean(k_zeta**2)
+
+    rho, cmas = comp_rho_cma(y_rank, x_rank)
+
+    factor = 1 / ((1-zeta_3Y)**2)
+
+    y_rank_unique, y_num = np.unique(y_rank, return_counts=True)
+    pos_y = np.insert(np.cumsum(y_num), 0, 0)
+    
+    # Sort based on y_rank
+    ix_y = np.argsort(y_rank)
+    y_rank_sort = y_rank[ix_y]
+
+    x_rank_sort = x_rank[ix_y]
+    x_rank_unique = np.unique(x_rank_sort)
+    # k_p = ?
+    #k_p =  kernel_ties_optim2(x_rank_sort, y_rank_sort, rho, y_rank_unique, y_num, pos_y, ix_y, x_rank_unique)
+    sigma_rho = 9*np.mean(k_p**2)
+    sigma_pz = 9*np.mean((k_p * k_zeta)) 
+    var = factor*(sigma_rho + (2*rho*sigma_pz)/(1-zeta_3Y) + (rho**2*sigma_zeta)/((1-zeta_3Y)**2))
+    sd_2 = var/(4*N)
+    phalf = 1 - norm.cdf((cmas - 0.5) / np.sqrt(var/(4*N)))
+
+    return cmas, np.sqrt(sd_2), phalf
+
+
+def Sigma_fast2_continuous(y_rank, xarray_ranks):
+    N = len(y_rank)
+    k = xarray_ranks.shape[0]
+
+    zeta_3Y = 0#zeta_fun(y_rank)
+    k_zeta = prob_y(y_rank) ** 2 - zeta_3Y
+    sigma_zeta = 9 * np.mean(k_zeta ** 2)
+
+    rhos = np.zeros(k)
+    cmas = np.zeros(k)
+    kps = np.zeros((k, N))
+
+    y_rank_unique, y_num = np.unique(y_rank, return_counts=True)
+    pos_y = np.insert(np.cumsum(y_num), 0, 0)
+    
+    # Sort based on y_rank
+    ix_y = np.argsort(y_rank)
+    #y_rank_unique, y_rank_inverse = np.unique(y_rank, return_inverse=True)
+    y_rank_sort = y_rank[ix_y]
+    
+    
+    # Get unique x_rank values and their counts
+    # Precompute rho and CMA for all ranks
+    for j in range(k):
+        rhos[j], cmas[j] = comp_rho_cma(y_rank, xarray_ranks[j, :])
+        #x_rank_unique, x_rank_inverse = np.unique(xarray_ranks[j, :], return_inverse=True)
+
+        x_rank_sort = xarray_ranks[j, ix_y]
+        x_rank_unique = np.unique(x_rank_sort)
+        kps[j,:] = kernel_ties_optim2(x_rank_sort, y_rank_sort, rhos[j], y_rank_unique, y_num, pos_y, ix_y, x_rank_unique)
+
+    #factor = 1 / ((1 - zeta_3Y) ** 2)
+    phalf = np.zeros(k)
+    S = np.zeros((k, k))
+
+    for j in prange(k):
+        k_p = kps[j, :]#kernel_p(xarray_ranks[j, :], y_rank, rhos[j])
+        sigma_rho = 9 * np.mean(k_p ** 2)
+
+        var = sigma_rho
+        S[j, j] = var / (4 * N)
+        phalf[j] = 1 - norm.cdf((cmas[j] - 0.5) / np.sqrt(var / (4 * N)))
+
+        # Calculate off-diagonal elements
+        for i in prange(j + 1, k):
+            k_p2 = kps[i, :]#kernel_p(xarray_ranks[i, :], y_rank, rhos[i])
+            sigma_rho2 = 9 * np.mean(k_p * k_p2)
+            #sigma_pz2 = 9 * np.mean(k_p2 * k_zeta)
+            
+            #var = factor * (
+            #    sigma_rho2 + (rhos[j] * sigma_pz) / (1 - zeta_3Y) +
+            #    (rhos[i] * sigma_pz2) / (1 - zeta_3Y) +
+            #    (rhos[j] * rhos[i] * sigma_zeta) / ((1 - zeta_3Y) ** 2)
+            #)
+            var = sigma_rho2
+            S[j, i] = S[i, j] = var / (4 * N)
+
+    # Return DataFrame with results
+    cmas_pd = pd.DataFrame({
+        'CMA': cmas,
+        'SD': np.sqrt(np.diag(S)),
+        'P(H0: CMA=0.5)': phalf
+    })
+
+    return cmas, S, cmas_pd
+
+
+def cma_stat_test_spear(y, x ,conf_level = 0.95):
+    ##################
+    # checking N > 3 #
+    ##################
+    
+    # single prediction for y:
+    if x.ndim == 1:
+        # computation performed on ranks:
+        y_ranks = rankdata(y, method='average')
+        x_ranks = rankdata(x, method='average')
+        
+        # compute score, variance estimation and p-value
+        cmas, sd, p = one_dim_test_continuous(y_ranks, x_ranks)
+        
+        return test_one(cmas = cmas, sd = sd, p = p)
+    
+    # multiple predictors for y:
+    else:
+        # computation performed on ranks:
+        y_ranks = rankdata(y, method='average')
+        xarray_ranks = np.apply_along_axis(rankdata, axis=1, arr=x, method='average')
+
+        # single value testing and variance estimation: 
+        cmas, S , cma_pd = Sigma_fast2_continuous(y_ranks, xarray_ranks)
+
+        # global testing:
+        z, p, cmadiff = calc_pvalue_chi_our(cmas, S)
+
+        # pairwise testing:
+        diff_pd = pairwise_testing_our(len(cmas), S, cmadiff, conf_level)
+    
+        return test_multiple(cmas = cma_pd, differences = diff_pd, covariance = S, global_z = z, global_p = p)
+
+    
     
