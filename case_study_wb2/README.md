@@ -88,3 +88,7 @@ Located in `statistical_test/` directory:
 - The scripts automatically create output directories if they don't exist
 - `helper.py` provides essential functions used across other scripts
 - The statistical testing pipeline supports parallel processing for improved performance 
+
+## Acknowledgments
+
+For original code and data, see [WeatherBench 2](https://github.com/google-research/weatherbench2)
