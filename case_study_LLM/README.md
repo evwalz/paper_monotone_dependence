@@ -17,3 +17,7 @@ This case study is currently under development. It will focus on Large Language 
 ## Notes
 
 This case study is in development. Please check back later for updates. 
+
+## Acknowledgments
+
+For original code and data, see [Rank calibration](https://github.com/shuoli90/Rank-Calibration)
