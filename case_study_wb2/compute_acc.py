@@ -104,37 +104,6 @@ def open_fct(forecast_path):
     forecast = make_latitude_increasing(forecast)
     return forecast
 
-def get_letters_until_second_underscore(s):
-    """
-    Extract all characters from a string until the second underscore.
-    
-    Args:
-        s (str): The input string
-        
-    Returns:
-        str: All characters before the second underscore, or the entire string 
-             if fewer than two underscores exist
-    """
-
-    if s == 'persistence_precipitation_24hr_2020.zarr':
-        return 'persistence'
-    # Find the position of the first underscore
-    first_underscore_index = s.find('_')
-    
-    # If first underscore doesn't exist, return the entire string
-    if first_underscore_index == -1:
-        return s
-    
-    # Find the position of the second underscore (start searching after the first one)
-    second_underscore_index = s.find('_', first_underscore_index + 1)
-
-    
-    # If second underscore exists, return everything before it
-    if second_underscore_index != -1:
-        return s[:second_underscore_index]
-    # If only one underscore exists, return the entire string
-    else:
-        return s
     
 
 def acc_per_lat(forecast, obs, climatology):
@@ -195,17 +164,17 @@ def compute_acc(input_dir):
     output_dir = input_dir + '/acc_results/'
     os.makedirs(output_dir, exist_ok = True)
     
-    obs_path = input_dir + 'era5_obs_precipitation_24hr_2020.zarr'
+    obs_path = input_dir + 'era5_obs_total_precipitation_24hr_2020.zarr'
     obs = open_obs(obs_path)
 
-    climatology = open_fct(input_dir + 'clim_precipitation_24hr_2020.zarr')
+    climatology = open_fct(input_dir + 'clim_total_precipitation_24hr_2020.zarr')
     
-    forecast_paths = ['graphcast_ifs_precipitation_24hr_2020.zarr', 'ifs_hres_precipitation_24hr_2020.zarr', 'ifs_mean_precipitation_24hr_2020.zarr', 'persistence_precipitation_24hr_2020.zarr']
+    forecast_paths = ['graphcast_ifs_total_precipitation_24hr_2020.zarr', 'ifs_hres_total_precipitation_24hr_2020.zarr', 'persistence_total_precipitation_24hr_2020.zarr']
+    names = ['graphcast_ifs', 'ifs_hres', 'persistence']
 
-    for fct_path in forecast_paths:
+    for fct_path, save_name in zip(forecast_paths, names):
         forecast = open_fct(input_dir + fct_path)
         acc_vals = acc_per_lat(forecast, obs, climatology)
-        save_name = get_letters_until_second_underscore(fct_path)
         np.savetxt(output_dir + 'acc_'+save_name+'.txt', acc_vals)
 
     # compute for climatology:
@@ -224,15 +193,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-
-#def compute_cpa():
-
-#def compute_cma():
-
-#def compute_seeps():
-
-#def compute_acc():
-
 

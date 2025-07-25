@@ -1,13 +1,9 @@
 # Simulation Case Study
 
-This repository contains scripts for simulating and analyzing weather prediction data, focusing on the evaluation of prediction models under various conditions.
+This study runs statistical siginificance tests.
 
 ## Overview
 
-The repository contains the following main components:
-
-1. **Simulation Scripts**: For generating synthetic weather data and performing statistical tests
-2. **Analysis Tools**: For processing and analyzing the simulated data
 
 ## Main Scripts
 

@@ -26,7 +26,6 @@ def get_rmse(input_dir):
 
     forecast_models = {
     'GraphCast':  'rmse_graphcast_ifs.txt',
-    'IFS Mean': 'rmse_ifs_mean.txt',
     'IFS HRES': 'rmse_ifs_hres.txt',
     'Climatology': 'rmse_climatology.txt',
     'Persistence': 'rmse_persistence.txt'
@@ -43,7 +42,6 @@ def get_acc(input_dir):
 
     forecast_models = {
     'GraphCast':  'acc_graphcast_ifs.txt',
-    'IFS Mean': 'acc_ifs_mean.txt',
     'IFS HRES': 'acc_ifs_hres.txt',
     'Climatology': 'acc_climatology.txt',
     'Persistence': 'acc_persistence.txt'
@@ -60,7 +58,6 @@ def get_seeps(input_dir):
 
     forecast_models = {
     'GraphCast':  'seeps_graphcast_ifs.nc',
-    'IFS Mean': 'seeps_ifs_mean.nc',
     'IFS HRES': 'seeps_ifs_hres.nc',
     'Climatology': 'seeps_climatology.nc',
     'Persistence': 'seeps_persistence.nc'
@@ -77,7 +74,6 @@ def get_cma(input_dir):
 
     forecast_models = {
     'GraphCast':  'cma_graphcast_ifs.txt',
-    'IFS Mean': 'cma_ifs_mean.txt',
     'IFS HRES': 'cma_ifs_hres.txt',
     'Persistence': 'cma_persistence.txt',
     'Climatology': 'cma_climatology.txt'
@@ -90,22 +86,7 @@ def get_cma(input_dir):
     return cma_cpa_per_lat_results
 
 
-def get_cpa(input_dir):
-    cma_cpa_per_lat_results = {}
 
-    forecast_models = {
-    'GraphCast':  'cpa_graphcast_ifs.txt',
-    'IFS Mean': 'cpa_ifs_mean.txt',
-    'IFS HRES': 'cpa_ifs_hres.txt',
-    'Climatology': 'cpa_climatology.txt',
-    'Persistence': 'cpa_persistence.txt'
-    }
-
-    for model_name, forecast_path in forecast_models.items():
-        cma_cpa_per_lat = np.loadtxt(input_dir + forecast_path)
-        cma_cpa_per_lat_results[model_name] = cma_cpa_per_lat
-
-    return cma_cpa_per_lat_results
 
 def calculate_improvement_over_climatology(rmse_per_lat_results):
     """

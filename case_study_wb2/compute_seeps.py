@@ -101,7 +101,7 @@ def compute_seeps_clim_per_lat(climatology, obs, climatology_seeps, fct_time_val
     obs_cat = convert_precip_to_seeps_cat(var_obs)
     
     # Compute contingency table
-    print('starting expensive out computation')
+    #print('starting expensive out computation')
     out = (
         forecast_cat.rename({"seeps_cat": "forecast_cat"})
         * obs_cat.rename({"seeps_cat": "truth_cat"})
@@ -119,14 +119,14 @@ def compute_seeps_clim_per_lat(climatology, obs, climatology_seeps, fct_time_val
     ]
     
     das = []
-    print('starting expensive for loop')
+    #print('starting expensive for loop')
     for mat in scoring_matrix:
         das.append(xr.concat(mat, dim=out.truth_cat))
     scoring_matrix = 0.5 * xr.concat(das, dim=out.forecast_cat)
     scoring_matrix = scoring_matrix.compute()
     
     # Take dot product
-    print('starting expensive dot product')
+    #print('starting expensive dot product')
     result = xr.dot(out, scoring_matrix, dims=("forecast_cat", "truth_cat"))
     
     # Mask out p1 thresholds
@@ -192,37 +192,6 @@ def open_fct(forecast_path):
     forecast = make_latitude_increasing(forecast)
     return forecast
 
-def get_letters_until_second_underscore(s):
-    """
-    Extract all characters from a string until the second underscore.
-    
-    Args:
-        s (str): The input string
-        
-    Returns:
-        str: All characters before the second underscore, or the entire string 
-             if fewer than two underscores exist
-    """
-
-    if s == 'persistence_precipitation_24hr_2020.zarr':
-        return 'persistence'
-    # Find the position of the first underscore
-    first_underscore_index = s.find('_')
-    
-    # If first underscore doesn't exist, return the entire string
-    if first_underscore_index == -1:
-        return s
-    
-    # Find the position of the second underscore (start searching after the first one)
-    second_underscore_index = s.find('_', first_underscore_index + 1)
-
-    
-    # If second underscore exists, return everything before it
-    if second_underscore_index != -1:
-        return s[:second_underscore_index]
-    # If only one underscore exists, return the entire string
-    else:
-        return s
     
 
 def compute_seeps_per_lat(forecast, obs, climatology, precip_name="total_precipitation_24hr", 
@@ -321,7 +290,7 @@ def compute_seeps_per_lat(forecast, obs, climatology, precip_name="total_precipi
     obs_cat = convert_precip_to_seeps_cat(var_obs)
     
     # Compute contingency table
-    print('starting expensive out computation')
+    #print('starting expensive out computation')
     out = (
         forecast_cat.rename({"seeps_cat": "forecast_cat"})
         * obs_cat.rename({"seeps_cat": "truth_cat"})
@@ -339,14 +308,14 @@ def compute_seeps_per_lat(forecast, obs, climatology, precip_name="total_precipi
     ]
     
     das = []
-    print('starting expensive for loop')
+    #print('starting expensive for loop')
     for mat in scoring_matrix:
         das.append(xr.concat(mat, dim=out.truth_cat))
     scoring_matrix = 0.5 * xr.concat(das, dim=out.forecast_cat)
     scoring_matrix = scoring_matrix.compute()
     
     # Take dot product
-    print('starting expensive dot product')
+    #print('starting expensive dot product')
     result = xr.dot(out, scoring_matrix, dims=("forecast_cat", "truth_cat"))
     
     # Mask out p1 thresholds
@@ -365,26 +334,26 @@ def compute_seeps(input_dir):
     output_dir = input_dir + '/seeps_results/'
     os.makedirs(output_dir, exist_ok = True)
     
-    obs_path = input_dir + 'era5_obs_precipitation_24hr_2020.zarr'
+    obs_path = input_dir + 'era5_obs_total_precipitation_24hr_2020.zarr'
     obs = open_obs(obs_path)
 
     #climatology = xr.open_dataset('./precip_data/global_seeps_climatology.nc')
-    climatology = xr.open_zarr("gs://weatherbench2/datasets/era5-hourly-climatology/1990-2019_6h_1440x721.zarr")#xr.open_dataset('./precip_data/global_seeps_climatology.nc')
+    climatology = xr.open_zarr("gs://weatherbench2/datasets/era5-hourly-climatology/1990-2019_6h_240x121_equiangular_with_poles_conservative.zarr")#xr.open_dataset('./precip_data/global_seeps_climatology.nc')
     climatology = make_latitude_increasing(climatology)
 
-    forecast_paths = ['graphcast_ifs_precipitation_24hr_2020.zarr', 'ifs_hres_precipitation_24hr_2020.zarr', 'ifs_mean_precipitation_24hr_2020.zarr', 'persistence_precipitation_24hr_2020.zarr']
+    forecast_paths = ['graphcast_ifs_total_precipitation_24hr_2020.zarr', 'ifs_hres_total_precipitation_24hr_2020.zarr', 'persistence_total_precipitation_24hr_2020.zarr']
+    names = ['graphcast_ifs', 'ifs_hres', 'persistence']
 
     seeps_vals_list = list()
-    for fct_path in forecast_paths:
+    for fct_path, save_name in zip(forecast_paths, names):
         forecast = open_fct(input_dir + fct_path)
         seeps_lat = compute_seeps_per_lat(forecast, obs, climatology)
-        save_name = get_letters_until_second_underscore(fct_path)
         seeps_lat.to_netcdf(output_dir + 'seeps_'+save_name+'.nc')
 
     time_fct = forecast.time.values
 
     # Climatology:
-    climatology_forecast = open_fct(input_dir + 'clim_precipitation_24hr_2020.zarr')
+    climatology_forecast = open_fct(input_dir + 'clim_total_precipitation_24hr_2020.zarr')
     seeps_lat = compute_seeps_clim_per_lat(climatology_forecast, obs, climatology, time_fct)
     seeps_lat.to_netcdf(output_dir + 'seeps_climatology.nc')
 
