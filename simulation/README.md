@@ -2,16 +2,13 @@
 
 This study runs statistical siginificance tests.
 
-## Overview
-
-
 ## Main Scripts
 
-- `simulated_data.py`: Generates synthetic data and performs CMA (Conditional Mutual Association) statistical tests under different scenarios:
+- `simulated_data.py`: Generates synthetic data and performs statistical tests:
   - Binary data simulation
   - Real-valued data simulation
   - Discretized data simulation
-- `helpers.py`: Contains utility functions used across the simulation and analysis scripts, including the CMA statistical test implementation
+- `helpers.py`: Contains utility functions
 
 ## Requirements
 
@@ -49,10 +46,3 @@ python simulated_data.py
 # Run real experiment with custom parameters
 python simulated_data.py --n 200 --T 1000 --experiment real --output_dir ./results/
 ```
-
-## Notes
-
-- The simulation scripts generate synthetic data that mimics real weather patterns
-- The helper functions provide essential tools for data processing and analysis
-- Results are saved as text files in the specified output directory
-- Each experiment type tests different aspects of the CMA statistical test 
