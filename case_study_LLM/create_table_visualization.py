@@ -66,65 +66,65 @@ def create_table(metric_type='cma', input_dir = './Rank-Calibration/'):
     table_vals[0:24, -1] = np.nan
     return np.round(table_vals, 3)
 
-def create_formatted_table(table_vals, metric_type='cma', output_file='table.pdf'):
-    """
-    Create a nicely formatted table with the specified structure and save it as a PDF.
+# def create_formatted_table(table_vals, metric_type='cma', output_file='table.pdf'):
+#     """
+#     Create a nicely formatted table with the specified structure and save it as a PDF.
     
-    Args:
-        table_vals (np.ndarray): The table values to format
-        metric_type (str): Either 'cma' or 'erce' to specify which metric to visualize
-        output_file (str): Path to save the PDF file
-    """
-    # Create a DataFrame with the table values
-    df = pd.DataFrame(table_vals, columns=['$U_{Ecc}$', '$U_{Deg}$', '$U_{EigV}$', '$U_{NLL}$', '$U_{SE}$', '$C_{Verb}$'])
-    df = df.fillna('')
+#     Args:
+#         table_vals (np.ndarray): The table values to format
+#         metric_type (str): Either 'cma' or 'erce' to specify which metric to visualize
+#         output_file (str): Path to save the PDF file
+#     """
+#     # Create a DataFrame with the table values
+#     df = pd.DataFrame(table_vals, columns=['$U_{Ecc}$', '$U_{Deg}$', '$U_{EigV}$', '$U_{NLL}$', '$U_{SE}$', '$C_{Verb}$'])
+#     df = df.fillna('')
 
-    # Add model, dataset, and correctness columns
-    models = ['Llama-2', 'Llama-2-chat', 'GPT-3.5']
-    datasets = ['nq-open', 'squad', 'triviaqa']
-    correctness = ['ber', 'meteor', 'rougeL', 'rouge1']
+#     # Add model, dataset, and correctness columns
+#     models = ['Llama-2', 'Llama-2-chat', 'GPT-3.5']
+#     datasets = ['nq-open', 'squad', 'triviaqa']
+#     correctness = ['ber', 'meteor', 'rougeL', 'rouge1']
     
-    # Create the model column (12 cells per model)
-    model_col = []
-    for model in models:
-        model_col.extend([model] * 12)
+#     # Create the model column (12 cells per model)
+#     model_col = []
+#     for model in models:
+#         model_col.extend([model] * 12)
     
-    # Create the dataset column (4 cells per dataset, repeated for each model)
-    dataset_col = []
-    for _ in models:
-        for dataset in datasets:
-            dataset_col.extend([dataset] * 4)
+#     # Create the dataset column (4 cells per dataset, repeated for each model)
+#     dataset_col = []
+#     for _ in models:
+#         for dataset in datasets:
+#             dataset_col.extend([dataset] * 4)
     
-    # Create the correctness column (repeated 3 times for each model)
-    correctness_col = correctness * 9
+#     # Create the correctness column (repeated 3 times for each model)
+#     correctness_col = correctness * 9
     
-    # Add the new columns to the DataFrame
-    df.insert(0, 'correctness', correctness_col)
-    df.insert(0, 'dataset', dataset_col)
-    df.insert(0, 'model', model_col)
+#     # Add the new columns to the DataFrame
+#     df.insert(0, 'correctness', correctness_col)
+#     df.insert(0, 'dataset', dataset_col)
+#     df.insert(0, 'model', model_col)
     
-    # Create a figure and axis
-    fig, ax = plt.subplots(figsize=(12, 8))
-    ax.axis('tight')
-    ax.axis('off')
+#     # Create a figure and axis
+#     fig, ax = plt.subplots(figsize=(12, 8))
+#     ax.axis('tight')
+#     ax.axis('off')
     
-    # Create the table
-    table = ax.table(cellText=df.values,
-                    colLabels=df.columns,
-                    cellLoc='center',
-                    loc='center',
-                    colColours=['lightgray']*len(df.columns))
+#     # Create the table
+#     table = ax.table(cellText=df.values,
+#                     colLabels=df.columns,
+#                     cellLoc='center',
+#                     loc='center',
+#                     colColours=['lightgray']*len(df.columns))
     
-    # Adjust table properties
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1.2, 1.5)
+#     # Adjust table properties
+#     table.auto_set_font_size(False)
+#     table.set_fontsize(10)
+#     table.scale(1.2, 1.5)
     
-    # Save to PDF
-    with PdfPages(output_file) as pdf:
-        pdf.savefig(fig, bbox_inches='tight')
+#     # Save to PDF
+#     with PdfPages(output_file) as pdf:
+#         pdf.savefig(fig, bbox_inches='tight')
     
-    plt.close()
+#     plt.close()
 
 def create_scatter_plot(input_dir, output_file):
     # Get tables for both metrics
@@ -167,8 +167,8 @@ if __name__ == '__main__':
                        help='Metric to visualize (CMA or ERCE)')
     parser.add_argument('--input_dir', type=str, default=None,
                        help='Directory containing the JSON files. Defaults to RANK_CALIBRATION_PATH/stats')
-    parser.add_argument('--output_table', type=str, default='table.pdf',
-                       help='Path to save the output PDF table')
+    #parser.add_argument('--output_table', type=str, default='table.pdf',
+    #                   help='Path to save the output PDF table')
     parser.add_argument('--output_plot', type=str, default='plot.pdf',
                        help='Path to save the output PDF plot')
     #parser.add_argument('--plot', type=bool, default=False,
@@ -178,8 +178,8 @@ if __name__ == '__main__':
     if args.input_dir is None:
         args.input_dir = os.path.join(args.rank_calibration_path, 'stats')
     
-    table = create_table(args.metric, args.input_dir)
-    create_formatted_table(table, args.metric, args.output_table)
+    #table = create_table(args.metric, args.input_dir)
+    #create_formatted_table(table, args.metric, args.output_table)
     #if args.plot:
     create_scatter_plot(args.input_dir, args.output_plot)
    
