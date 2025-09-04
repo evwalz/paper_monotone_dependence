@@ -45,6 +45,7 @@ cd /path/to/case_study_LLM
 ```
 
 4. Configure the path and run the experiments:
+
     **Step 1:** Open the script files and set your Rank-Calibration directory path:
    - Edit `run_compute_cma_single.sh` and `run_compute_cma.sh`
    - Find the `USER CONFIGURATION` section at the top
