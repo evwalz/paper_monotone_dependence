@@ -44,16 +44,22 @@ rce\Scripts\activate
 cd /path/to/case_study_LLM
 ```
 
-4. Define correct directory to Rank-Calibration folder under 'file_path' and run it:
-```bash
-# For Linux/Mac
-./run_compute_cma_single.sh
-./run_compute_cma.sh
+4. Configure the path and run the experiments:
+    **Step 1:** Open the script files and set your Rank-Calibration directory path:
+   - Edit `run_compute_cma_single.sh` and `run_compute_cma.sh`
+   - Find the `USER CONFIGURATION` section at the top
+   - Replace `path/to/Rank-Calibration/` with your actual directory path
+   
+   **Step 2:** Run the scripts:
+    ```bash
+    # For Linux/Mac
+    ./run_compute_cma_single.sh
+    ./run_compute_cma.sh
 
-# For Windows
-.\run_compute_cma.sh
-.\run_compute_cma.sh
-```
+    # For Windows
+    .\run_compute_cma.sh
+    .\run_compute_cma.sh
+    ```
 
 5. Create table and visualization;
 ```bash

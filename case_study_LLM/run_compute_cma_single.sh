@@ -1,4 +1,14 @@
-file_path='path/to/Rank-Calibration/'
+# Set your Rank-Calibration directory path here
+RANK_CALIBRATION_PATH="path/to/Rank-Calibration/"
+
+# Validate the path exists
+if [ ! -d "$RANK_CALIBRATION_PATH" ]; then
+    echo "Error: RANK_CALIBRATION_PATH directory does not exist: $RANK_CALIBRATION_PATH"
+    echo "Please set the correct path in the USER CONFIGURATION section above"
+    exit 1
+fi
+
+file_path="$RANK_CALIBRATION_PATH"
 
 python compute_cma_single.py --rank_calibration_path "$file_path" --correctness bert_similarity
 python compute_cma_single.py --rank_calibration_path "$file_path" --correctness rouge
