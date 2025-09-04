@@ -54,7 +54,3 @@ The statistical testing pipeline is located in the `statistical_test/` directory
 ## Acknowledgments
 
 For original code and data, see [WeatherBench 2](https://github.com/google-research/weatherbench2)
-
-## Note
-
-Include statistical test

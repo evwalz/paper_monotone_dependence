@@ -47,15 +47,18 @@ cd /path/to/case_study_LLM
 4. Define correct directory to Rank-Calibration folder under 'file_path' and run it:
 ```bash
 # For Linux/Mac
+./run_compute_cma_single.sh
 ./run_compute_cma.sh
 
 # For Windows
+.\run_compute_cma.sh
 .\run_compute_cma.sh
 ```
 
 5. Create table and visualization;
 ```bash
-python create_table_visualization.py
+python create_table_single.py
+python create_visualization.py
 ```
 
 ## Acknowledgments

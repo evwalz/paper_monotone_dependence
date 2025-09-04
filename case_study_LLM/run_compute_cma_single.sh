@@ -1,4 +1,4 @@
-file_path='/Users/eva/Documents/Work/after_promotion/CPA/example/github_repos/Rank-Calibration/'
+file_path='path/to/Rank-Calibration/'
 
 python compute_cma_single.py --rank_calibration_path "$file_path" --correctness bert_similarity
 python compute_cma_single.py --rank_calibration_path "$file_path" --correctness rouge
