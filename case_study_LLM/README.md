@@ -18,7 +18,7 @@ python -m venv rce
 pip install -r requirements.txt
 ```
 
-## Running the Script
+## Usage
 
 To run the analysis, use the provided `run_compute_cma.sh` script which will execute `compute_cma.py` with different configurations:
 
