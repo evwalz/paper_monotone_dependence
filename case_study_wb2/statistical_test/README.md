@@ -48,7 +48,7 @@ Combines results from all chunks:
 
 ```bash
 # Step 1: Split data into chunks
-python split_data_stat_test.py
+python split_data.py
 
 # Step 2: Process chunks (can be run in parallel)
 # Example: Process chunk 0

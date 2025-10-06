@@ -15,26 +15,6 @@ def unique_with_counts_v2(arr):
     """Optimized version for large arrays - use numpy's built-in for 100k+ data"""
     return np.unique(arr, return_counts=True)
 
-def zeta_fun_v2(y):
-    """Optimized zeta function for large datasets"""
-    N = len(y)
-    if N < 3:
-        return 0
-    
-    # For large datasets, numpy's unique is much faster
-    _, counts = unique_with_counts_v2(y)
-    
-    # Vectorized combination computation
-    mask = counts >= 3
-    if not np.any(mask):
-        return 0
-    
-    # Use exact=True for integer inputs - much faster
-    triplets_count = np.sum([comb(c, 3, exact=True) for c in counts[mask]])
-    
-    bin_N_3 = 6.0 / (N * (N - 1) * (N - 2))
-    return bin_N_3 * triplets_count
-
 def prob_y_v2(y):
     """Optimized probability computation for large arrays"""
     unique, counts = unique_with_counts_v2(y)
@@ -155,7 +135,7 @@ def del_our_second_single_numba(y_ranks, x_ranks):
     N = len(y_ranks)
     inv_N = 1.0 / N
 
-    zeta_3Y = zeta_fun_v2(y_ranks)
+    zeta_3Y = 1-(12/N**2)*np.var(y_ranks)
     denum_zeta = 1 - zeta_3Y
     k_zeta = prob_y_v2(y_ranks) ** 2 - zeta_3Y
 
@@ -381,9 +361,9 @@ if __name__ == '__main__':
         #erce = calibration.plugin_RCE_est(correctness=correctness_scores, uncertainties=uncertainty, num_bins=20, p=1)
         #result[f'{indicator}_erce'] = erce
 
-        print(len(correctness_scores))
-        print(len(np.unique(correctness_scores)))
-        print(len(np.unique(uncertainty)))
+        #print(len(correctness_scores))
+        #print(len(np.unique(correctness_scores)))
+       # print(len(np.unique(uncertainty)))
             # compute CMA
         #cma_val = cma(response=correctness_scores, predictor=-uncertainty)
         #result[f'{indicator}_cma'] = cma_val

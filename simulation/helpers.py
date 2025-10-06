@@ -167,7 +167,7 @@ def Sigma_fast2(y_rank, xarray_ranks):
     N = len(y_rank)
     k = xarray_ranks.shape[0]
 
-    zeta_3Y = zeta_fun(y_rank)
+    zeta_3Y = 1-(12/N**2)*np.var(y_rank)#zeta_fun(y_rank)
     k_zeta = prob_y(y_rank) ** 2 - zeta_3Y
     sigma_zeta = 9 * np.mean(k_zeta ** 2)
 
@@ -239,7 +239,7 @@ def one_dim_test(y_rank, x_rank):
     N = len(y_rank)
 
 
-    zeta_3Y = zeta_fun(y_rank)
+    zeta_3Y = 1-(12/N**2)*np.var(y_rank)#zeta_fun(y_rank)
     k_zeta = prob_y(y_rank)**2 - zeta_3Y
     sigma_zeta = 9*np.mean(k_zeta**2)
 
