@@ -1,18 +1,11 @@
-# Monotone Dependence - Reproducibility Code
+# Assessing Monotone Dependence: Area Under the Curve Meets Rank Correlation
 
-This repository contains code to reproduce all figures and case studies from:
-
+<!--
 **Assessing Monotone Dependence: Area Under the Curve Meets Rank Correlation**  
 Eva-Maria Walz, Andreas Eberl, Tilmann Gneiting
 *Preprint coming soon*
-<!--
 Preprint available at: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)
 -->
-
-## Citation
-
-Citation information will be added upon publication.
-
 <!--
 If you use this code in your research, please cite:
 
@@ -72,8 +65,7 @@ Triangle figure illustrating monotone dependence on example data.
 - Additional case-study-specific requirements listed in subdirectory READMEs
 
 ### Installation
-Each case study has its own dependency file:
-- Python case studies: `requirements.txt`
+Each case study has its own dependency file: `requirements.txt`
 
 Navigate to the specific directory and follow the setup instructions in the local README.
 
@@ -109,6 +101,10 @@ Each subdirectory README contains detailed instructions for reproducing specific
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Citation
+
+Citation information will be added upon publication.
 
 ## Acknowledgments
 
