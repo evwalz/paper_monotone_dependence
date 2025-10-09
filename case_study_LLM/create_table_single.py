@@ -27,15 +27,13 @@ def create_table(metric_type='cma', input_dir = './Rank-Calibration/'):
                     'degree_u_agreement_cma', 
                     'spectral_u_agreement_cma',
                     'unnormalized_nll_all_cma', 
-                    'entropy_unnormalized_cma',
-                    'verbalized_cma']
+                    'entropy_unnormalized_cma']
     else:  # erce
         col_table = ['ecc_u_agreement_erce', 
                     'degree_u_agreement_erce', 
                     'spectral_u_agreement_erce',
                     'unnormalized_nll_all_erce', 
-                    'entropy_unnormalized_erce',
-                    'verbalized_erce']
+                    'entropy_unnormalized_erce']
         
     table_vals = np.zeros((12*3, len(col_table)))
     r = 0

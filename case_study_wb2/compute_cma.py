@@ -6,72 +6,68 @@ import sys
 import argparse
 from scipy.stats import rankdata
 import time
-    
-    # Function to compute CMA - vectorized when possible
+import glob
+
 def cma(y, x):
+    """Compute CMA metric only."""
     if len(y) <= 1 or len(x) <= 1:
-        return np.nan, np.nan
+        return np.nan
             
-        # Handle NaN values
+    # Handle NaN values
     valid_idx = ~np.isnan(y) & ~np.isnan(x)
     if np.sum(valid_idx) <= 1:
-        return np.nan, np.nan
+        return np.nan
             
     y_valid = y[valid_idx]
     x_valid = x[valid_idx]
         
     y_rank = rankdata(y_valid, method='average')
     x_rank = rankdata(x_valid, method='average')
-    y_classes = rankdata(y_valid, method='dense')
     N = len(y_valid)
-    var = np.sum((y_rank - np.mean(y_rank))**2)*(1/(N-1))
-    return (np.cov(y_rank, x_rank)[0][1]/var+1)/2
-
-
-def clim_cma(climatology, obs, time_fct, variable):
-    """Compute CMA for climatology - same logic as precipitation."""
-    obs_times = obs.time.values
     
-    # Calculate the target verification times (t+24h for timedelta_idx=3)
-    valid_forecast_times = [t for t in time_fct if t + np.timedelta64(24, 'h') in obs_times]
-    valid_target_times = [t + np.timedelta64(24, 'h') for t in valid_forecast_times]
+    # Compute variance of ranks
+    var = np.sum((y_rank - np.mean(y_rank))**2) / (N-1)
     
-    # Get the ground truth (observations at time t+12h)
-    ground_truth = obs.sel(time=valid_target_times)
+    # Avoid division by zero
+    if var == 0:
+        return np.nan
     
-    # Create a time selection dictionary for climatology
-    time_selection = {
-        'dayofyear': xr.DataArray([pd.Timestamp(t).dayofyear for t in valid_target_times], dims='time')
-    }
+    # Compute covariances
+    cov_ranks = np.cov(y_rank, x_rank)[0, 1]
     
-    # Add hour selection if climatology includes hourly data
-    if 'hour' in climatology.coords:
-        time_selection['hour'] = xr.DataArray([pd.Timestamp(t).hour for t in valid_target_times], dims='time')
-
-    # Select climatology values based on the time selection
-    start_time = time.time()
-    clim_forecast = climatology[variable].sel(time_selection)
+    # Compute CMA
+    cma_val = (cov_ranks / var + 1) / 2
     
-    # Assign the target times as coordinates to climatology
-    clim_forecast = clim_forecast.assign_coords(time=valid_target_times)
-    # Get the observations for the same variable
-    var_obs = ground_truth[variable]
-    
-    # Make sure time dimensions match
-    common_times = np.intersect1d(clim_forecast.time, var_obs.time)
-    var_forecast = clim_forecast.sel(time=common_times)
-    var_obs = var_obs.sel(time=common_times)
-
-    return _compute_cma_grid(var_forecast, var_obs, start_time)
+    return cma_val
 
 def _compute_cma_grid(var_forecast, var_obs, start_time):
     """Helper function to compute CMA on a grid."""
-    # Get dimensions
-    latitudes = var_forecast.latitude.values
-    longitudes = var_forecast.longitude.values
+    # Get spatial dimension names - check what actually exists
+    lat_name = None
+    lon_name = None
+    
+    # Check for latitude
+    for candidate in ['latitude', 'lat']:
+        if candidate in var_forecast.dims:
+            lat_name = candidate
+            break
+    
+    # Check for longitude
+    for candidate in ['longitude', 'lon']:
+        if candidate in var_forecast.dims:
+            lon_name = candidate
+            break
+    
+    if lat_name is None or lon_name is None:
+        raise ValueError(f"Spatial dimensions not found. Available dims: {list(var_forecast.dims)}, coords: {list(var_forecast.coords.keys())}")
+    
+    #print(f"Using spatial coordinates: {lat_name}, {lon_name}")
+    
+    latitudes = var_forecast[lat_name].values
+    longitudes = var_forecast[lon_name].values
 
-    print(f"Data prepared in {time.time() - start_time:.2f} seconds")
-    print(f"Computing CMA for {len(latitudes)} latitudes × {len(longitudes)} longitudes...")
+    #print(f"Data prepared in {time.time() - start_time:.2f} seconds")
+    #print(f"Computing CMA for {len(latitudes)} latitudes × {len(longitudes)} longitudes...")
     
     # Initialize array to store results
     cma_grid = np.full((len(latitudes), len(longitudes)), np.nan, dtype=float)
@@ -86,8 +82,8 @@ def _compute_cma_grid(var_forecast, var_obs, start_time):
         lat_batch = latitudes[batch_start:batch_end]
         
         # Extract data for this batch of latitudes
-        batch_forecast = var_forecast.sel(latitude=lat_batch)
-        batch_obs = var_obs.sel(latitude=lat_batch)
+        batch_forecast = var_forecast.sel({lat_name: lat_batch})
+        batch_obs = var_obs.sel({lat_name: lat_batch})
         
         # Process each latitude in the batch
         for i, lat in enumerate(lat_batch):
@@ -95,8 +91,8 @@ def _compute_cma_grid(var_forecast, var_obs, start_time):
             lat_idx = batch_start + i
             
             # Convert to numpy for faster processing
-            fct_data = batch_forecast.sel(latitude=lat).values
-            obs_data = batch_obs.sel(latitude=lat).values
+            fct_data = batch_forecast.sel({lat_name: lat}).values
+            obs_data = batch_obs.sel({lat_name: lat}).values
             
             # Process each longitude
             for j, lon in enumerate(longitudes):
@@ -116,22 +112,20 @@ def _compute_cma_grid(var_forecast, var_obs, start_time):
         total_elapsed = time.time() - start_time
         remaining = (total_elapsed / progress) * (100 - progress) if progress > 0 else 0
         
-        print(f"Progress: {progress:.1f}% - Processed latitudes {batch_start+1}-{batch_end}/{len(latitudes)} "
-              f"in {batch_elapsed:.1f}s (Elapsed: {total_elapsed:.1f}s, Est. remaining: {remaining:.1f}s)")
+        #print(f"Progress: {progress:.1f}% - Processed latitudes {batch_start+1}-{batch_end}/{len(latitudes)} "
+        #      f"in {batch_elapsed:.1f}s (Elapsed: {total_elapsed:.1f}s, Est. remaining: {remaining:.1f}s)")
     
     # Compute the average CMA over longitudes for each latitude
-    print("Computing average CMA per latitude...")
+    #print("Computing average CMA per latitude...")
     cma_per_lat_values = np.nanmean(cma_grid, axis=1)
     
     total_time = time.time() - start_time
     print(f"CMA computation complete in {total_time:.2f} seconds.")
     
     return cma_per_lat_values
-    
-
 
 def standardize_dims(dataset: xr.Dataset) -> xr.Dataset:
-    """Standardize dimension names to time, latitude, longitude."""
+    """Standardize dimension and coordinate names to time, latitude, longitude."""
     dim_mapping = {}
     
     # Check and map time dimension
@@ -150,8 +144,24 @@ def standardize_dims(dataset: xr.Dataset) -> xr.Dataset:
         if 'lon' in dataset.dims:
             dim_mapping['lon'] = 'longitude'
     
+    # Also check coordinates (not just dimensions)
+    coord_mapping = {}
+    if 'latitude' not in dataset.coords:
+        if 'lat' in dataset.coords:
+            coord_mapping['lat'] = 'latitude'
+    
+    if 'longitude' not in dataset.coords:
+        if 'lon' in dataset.coords:
+            coord_mapping['lon'] = 'longitude'
+    
+    # Apply dimension renaming
     if dim_mapping:
-        return dataset.rename(dim_mapping)
+        dataset = dataset.rename(dim_mapping)
+    
+    # Apply coordinate renaming if different from dimension mapping
+    if coord_mapping and coord_mapping != dim_mapping:
+        dataset = dataset.rename(coord_mapping)
+    
     return dataset
 
 def make_latitude_increasing(dataset: xr.Dataset) -> xr.Dataset:
@@ -169,14 +179,24 @@ def make_latitude_increasing(dataset: xr.Dataset) -> xr.Dataset:
 
 def open_obs(obs_path):
     obs = xr.open_zarr(obs_path)
+    #print(f"  Original dims: {list(obs.dims.keys())}")
+    #print(f"  Original coords: {list(obs.coords.keys())}")
     obs = standardize_dims(obs)
+    #print(f"  After standardize dims: {list(obs.dims.keys())}")
+    #print(f"  After standardize coords: {list(obs.coords.keys())}")
     obs = make_latitude_increasing(obs)
+    #print(f"  After make_latitude_increasing dims: {list(obs.dims.keys())}")
     return obs
 
 def open_fct(forecast_path):
     forecast = xr.open_zarr(forecast_path)
+    #print(f"  Original dims: {list(forecast.dims.keys())}")
+    #print(f"  Original coords: {list(forecast.coords.keys())}")
     forecast = standardize_dims(forecast)
+    #print(f"  After standardize dims: {list(forecast.dims.keys())}")
+    #print(f"  After standardize coords: {list(forecast.coords.keys())}")
     forecast = make_latitude_increasing(forecast)
+    #print(f"  After make_latitude_increasing dims: {list(forecast.dims.keys())}")
     return forecast
 
 def get_model_name_from_path(file_path):
@@ -186,9 +206,11 @@ def get_model_name_from_path(file_path):
     if filename.startswith('persistence_'):
         return 'persistence'
     elif filename.startswith('graphcast_'):
-        return 'graphcast_ifs'
+        return 'graphcast'
     elif filename.startswith('ifs_hres_'):
         return 'ifs_hres'
+    elif filename.startswith('pangu_'):
+        return 'pangu'
     elif filename.startswith('clim_'):
         return 'climatology'
     else:
@@ -216,11 +238,11 @@ def get_variable_from_path(file_path):
             return var
     
     # If no exact match, try to parse from structure
-    # Expected format: {model}_{variable}_{year}.zarr
+    # Expected format: {model}_{variable}_{leadtime}_{year}.zarr
     parts = name_without_ext.split('_')
     
     # Remove known prefixes
-    model_prefixes = ['graphcast', 'ifs', 'hres', 'era5', 'obs', 'clim', 'persistence']
+    model_prefixes = ['graphcast', 'ifs', 'hres', 'era5', 'obs', 'clim', 'persistence', 'pangu']
     year_suffix = '2020'
     
     # Find the variable part(s) between model and year
@@ -233,9 +255,9 @@ def get_variable_from_path(file_path):
             start_idx = i
             break
     
-    # Find year suffix
-    for i, part in enumerate(parts):
-        if part == year_suffix:
+    # Find year suffix or lead time pattern (e.g., "24h", "48h")
+    for i in range(len(parts)-1, -1, -1):
+        if parts[i] == year_suffix or parts[i].endswith('h'):
             end_idx = i
             break
     
@@ -245,106 +267,171 @@ def get_variable_from_path(file_path):
     
     return 'unknown_variable'
 
-def cma_per_lat(forecast, obs, variable):
-    """Compute CMA per latitude for a specific variable - same logic as precipitation."""
-    forecast_times = forecast.time.values
-    obs_times = obs.time.values
-
-    # Filter to only include forecast times that have a corresponding obs time 24h later
-    # (using timedelta_idx=3 which corresponds to 24 hours in your dataset)
-    valid_forecast_times = [t for t in forecast_times if t + np.timedelta64(24, 'h') in obs_times]
-    valid_obs_times = np.array(valid_forecast_times) + np.timedelta64(24, 'h')
-    
-    # Select only those valid forecast times
+def cma_per_lat(forecast, obs, variable, lead_time_hours):
+    """
+    Compute CMA per latitude using the reference approach:
+    1. Shift forecast time coordinates by lead_time (init time -> valid time)
+    2. Align forecast and observations on valid time
+    3. Compute CMA
+    """
     start_time = time.time()
-    filtered_forecast = forecast.sel(time=valid_forecast_times)
-    filtered_obs = obs.sel(time=valid_obs_times)
     
-    # Align time coordinates for comparison
-    filtered_forecast = filtered_forecast.assign_coords(time=valid_obs_times)
+    # Step 1: Shift forecast time coordinates to valid time (reference approach)
+    lead_time_delta = np.timedelta64(lead_time_hours, 'h')
+    forecast_valid = forecast.assign_coords(time=forecast.time + lead_time_delta)
     
-    var_forecast = filtered_forecast[variable]
-    var_obs = filtered_obs[variable]
-        
-    # Handle potentially missing values
+    # Step 2: Extract the variable
+    var_forecast = forecast_valid[variable]
+    var_obs = obs[variable]
+    
+    # Step 3: Align on common valid times
     common_times = np.intersect1d(var_forecast.time, var_obs.time)
     var_forecast = var_forecast.sel(time=common_times)
     var_obs = var_obs.sel(time=common_times)
     
-    print(f"Variable: {variable}")
-    print(f"Verification offset: 24 hours (timedelta_idx=3 in your dataset)")
-    print(f"Number of verification times: {len(common_times)}")
-        
+    #print(f"Variable: {variable}")
+    #print(f"Lead time: {lead_time_hours} hours")
+    #print(f"Number of verification times: {len(common_times)}")
+    #print(f"First verification time: {common_times[0]}")
+    #print(f"Last verification time: {common_times[-1]}")
+    
     return _compute_cma_grid(var_forecast, var_obs, start_time)
 
-def compute_cma(input_dir):
-    """Compute CMA for all forecast models for a specific variable or auto-detect."""
+def clim_cma(climatology, obs, forecast_init_times, variable, lead_time_hours):
+    """
+    Compute CMA for climatology using the reference approach.
+    """
+    start_time = time.time()
+    
+    # Calculate valid times from forecast initialization times
+    lead_time_delta = np.timedelta64(lead_time_hours, 'h')
+    valid_times = forecast_init_times + lead_time_delta
+    
+    # Filter to times that exist in observations
+    valid_times = [t for t in valid_times if t in obs.time.values]
+    
+    # Get observations at valid times
+    obs_valid = obs.sel(time=valid_times)
+    
+    # Create a time selection dictionary for climatology
+    time_selection = {
+        'dayofyear': xr.DataArray([pd.Timestamp(t).dayofyear for t in valid_times], dims='time')
+    }
+    
+    # Add hour selection if climatology includes hourly data
+    if 'hour' in climatology.coords:
+        time_selection['hour'] = xr.DataArray([pd.Timestamp(t).hour for t in valid_times], dims='time')
+
+    # Select climatology values based on the time selection
+    clim_forecast = climatology[variable].sel(time_selection)
+    
+    # Assign the valid times as coordinates to climatology
+    clim_forecast = clim_forecast.assign_coords(time=valid_times)
+    
+    # Get the observations for the same variable
+    var_obs = obs_valid[variable]
+    
+    # Make sure time dimensions match
+    common_times = np.intersect1d(clim_forecast.time, var_obs.time)
+    var_forecast = clim_forecast.sel(time=common_times)
+    var_obs = var_obs.sel(time=common_times)
+    
+    #print(f"Variable: {variable}")
+    #print(f"Lead time: {lead_time_hours} hours")
+    #print(f"Number of verification times: {len(common_times)}")
+
+    return _compute_cma_grid(var_forecast, var_obs, start_time)
+
+def compute_cma(input_dir, variable=None, lead_times=[24, 48, 72]):
+    """Compute CMA for all forecast models for a specific variable at multiple lead times."""
     output_dir = os.path.join(input_dir, 'cma_results')
     os.makedirs(output_dir, exist_ok=True)
-    variable = 'total_precipitation_24hr'
     
     # If variable not specified, try to auto-detect from available files
-    obs_path = os.path.join(input_dir, f'era5_obs_{variable}_2020.zarr')
+    if variable is None:
+        obs_files = glob.glob(os.path.join(input_dir, 'era5_obs_*.zarr'))
+        if not obs_files:
+            raise ValueError("No ERA5 observation files found. Please specify variable explicitly.")
+        
+        # Use the first observation file to determine variable
+        obs_path = obs_files[0]
+        variable = get_variable_from_path(obs_path)
+        #print(f"Auto-detected variable: {variable}")
+    else:
+        obs_path = os.path.join(input_dir, f'era5_obs_{variable}_2020.zarr')
+    
+    if not os.path.exists(obs_path):
+        raise FileNotFoundError(f"Observation file not found: {obs_path}")
+    
+    #print(f"Loading observations from: {obs_path}")
     obs = open_obs(obs_path)
     
-    # Find all forecast files for this variable
-    forecast_patterns = [
-        f'graphcast_ifs_{variable}_2020.zarr',
-        f'ifs_hres_{variable}_2020.zarr', 
-        f'persistence_{variable}_2020.zarr'
-    ]
-    
-    forecast_times = None
-    
-    for pattern in forecast_patterns:
-        fct_path = os.path.join(input_dir, pattern)
-        if os.path.exists(fct_path):
-            print(f"\nProcessing forecast: {pattern}")
-            forecast = open_fct(fct_path)
+    # Loop over each lead time
+    for lead_time_hours in lead_times:
+        #print(f"\n{'='*80}")
+        #print(f"COMPUTING CMA FOR LEAD TIME: {lead_time_hours} HOURS")
+        #print(f"{'='*80}\n")
+        
+        # Find all forecast files for this variable and lead time
+        forecast_patterns = [
+            f'graphcast_ifs_{variable}_{lead_time_hours}h_2020.zarr',
+            f'ifs_hres_{variable}_{lead_time_hours}h_2020.zarr', 
+            f'persistence_{variable}_{lead_time_hours}h_2020.zarr'
+        ]
+        
+        forecast_init_times = None
+        
+        for pattern in forecast_patterns:
+            fct_path = os.path.join(input_dir, pattern)
+            if os.path.exists(fct_path):
+                #print(f"\nProcessing forecast: {pattern}")
+                forecast = open_fct(fct_path)
+                
+                # Store forecast initialization times for climatology processing
+                if forecast_init_times is None:
+                    forecast_init_times = forecast.time.values
+                
+                cma_vals = cma_per_lat(forecast, obs, variable, lead_time_hours)
+                model_name = get_model_name_from_path(pattern)
+                
+                # Save results
+                cma_file = os.path.join(output_dir, f'cma_{model_name}_{variable}_lead{lead_time_hours}h.txt')
+                
+                np.savetxt(cma_file, cma_vals)
+                
+                print(f"Saved CMA results to: {cma_file}")
+            else:
+                print(f"Warning: Forecast file not found: {fct_path}")
+
+        # Process climatology for this lead time
+        clim_path = os.path.join(input_dir, f'clim_{variable}_{lead_time_hours}h_2020.zarr')
+        if os.path.exists(clim_path):
+            #print(f"\nProcessing climatology: {clim_path} at {lead_time_hours}h lead time")
+            climatology = open_fct(clim_path)
             
-            # Store forecast times for climatology processing
-            if forecast_times is None:
-                forecast_times = forecast.time.values
+            if forecast_init_times is None:
+                raise ValueError("No forecast files were processed successfully. Cannot determine forecast times for climatology.")
             
-            cma_vals = cma_per_lat(forecast, obs, variable)
-            model_name = get_model_name_from_path(pattern)
+            cma_vals = clim_cma(climatology, obs, forecast_init_times, variable, lead_time_hours)
             
-            # Save results
-            cma_file = os.path.join(output_dir, f'cma_{model_name}.txt')
+            # Save climatology results
+            cma_file = os.path.join(output_dir, f'cma_climatology_{variable}_lead{lead_time_hours}h.txt')
             
             np.savetxt(cma_file, cma_vals)
             
-            print(f"Saved CMA results to: {cma_file}")
+            print(f"Saved climatology CMA results to: {cma_file}")
         else:
-            print(f"Warning: Forecast file not found: {fct_path}")
+            print(f"Warning: Climatology file not found: {clim_path}")
 
-    # Process climatology
-    clim_path = os.path.join(input_dir, f'clim_{variable}_2020.zarr')
-    if os.path.exists(clim_path):
-        print(f"\nProcessing climatology: {clim_path}")
-        climatology = open_fct(clim_path)
-        
-        if forecast_times is None:
-            raise ValueError("No forecast files were processed successfully. Cannot determine forecast times for climatology.")
-        
-        cma_vals = clim_cma(climatology, obs, forecast_times, variable)
-        
-        # Save climatology results
-        cma_file = os.path.join(output_dir, f'cma_climatology.txt')
-        
-        np.savetxt(cma_file, cma_vals)
-        
-        print(f"Saved climatology CMA results to: {cma_file}")
-    else:
-        print(f"Warning: Climatology file not found: {clim_path}")
-
-    print(f"\nCMA computation complete for variable: {variable}")
-    print(f"Results saved to: {output_dir}")
 
 def main():
-    parser = argparse.ArgumentParser(description='Compute CMA values for weather forecasts')
+    parser = argparse.ArgumentParser(description='Compute CMA values for weather forecasts at multiple lead times')
     parser.add_argument('--input_dir', type=str, default='./fct_data/', 
                        help='Input directory containing the forecast and observation data')
+    parser.add_argument('--variable', type=str, default='2m_temperature',
+                       help='Variable to process. Options: 2m_temperature, 10m_wind_speed, mean_sea_level_pressure, total_precipitation_24hr. If not specified, will auto-detect from available files.')
+    parser.add_argument('--lead_times', type=int, nargs='+', default=[24, 72],
+                       help='Lead times in hours to compute CMA for')
     
     args = parser.parse_args()
     
@@ -353,8 +440,9 @@ def main():
     if not os.path.exists(input_dir):
         raise FileNotFoundError(f"Input directory does not exist: {input_dir}")
     
-    print(f"Processing data from: {input_dir}")
-    compute_cma(input_dir)
+    #print(f"Processing data from: {input_dir}")
+    #print(f"Lead times: {args.lead_times}")
+    compute_cma(input_dir, args.variable, args.lead_times)
     return 0
 
 if __name__ == "__main__":

@@ -1,113 +1,98 @@
 import xarray as xr
 import numpy as np
+import os
 import pandas as pd
 import sys
 import argparse
-import os
+import time
+import glob
 
+def convert_precip_to_seeps_cat(da, climatology, variable, dry_threshold):
+    """
+    Convert precipitation to SEEPS categories (dry, light, heavy).
+    
+    Parameters
+    ----------
+    da : xr.DataArray
+        Precipitation data array with time dimension
+    climatology : xr.Dataset
+        Climatology dataset containing SEEPS thresholds
+    variable : str
+        Variable name
+    dry_threshold : float
+        Dry threshold in meters (SI units)
+    
+    Returns
+    -------
+    xr.DataArray
+        Categorical array with dimension seeps_cat=['dry', 'light', 'heavy']
+    """
+    wet_threshold = climatology[f"{variable}_seeps_threshold"]
+    
+    # Select wet threshold for valid time
+    wet_threshold_for_valid_time = wet_threshold.sel(
+        dayofyear=da.time.dt.dayofyear,
+        hour=da.time.dt.hour
+    ).load()
+    
+    # Categorize precipitation
+    dry = da < dry_threshold
+    light = np.logical_and(da >= dry_threshold, da < wet_threshold_for_valid_time)
+    heavy = da >= wet_threshold_for_valid_time
+    
+    # Combine categories
+    result = xr.concat(
+        [dry, light, heavy],
+        dim=xr.DataArray(["dry", "light", "heavy"], dims=["seeps_cat"]),
+    )
+    
+    # Convert NaNs back to NaNs
+    result = result.astype("int").where(da.notnull())
+    return result
 
-def compute_seeps_clim_per_lat(climatology, obs, climatology_seeps, fct_time_values,  
-                             precip_name="total_precipitation_24hr", 
-                             dry_threshold_mm=0.25, min_p1=0.1, max_p1=0.85, spatial_avg = True):
-    """
-    Create a climatological forecast for evaluation.
+def _compute_seeps_grid(var_forecast, var_obs, climatology, variable, dry_threshold, 
+                        min_p1, max_p1, start_time):
+    """Helper function to compute SEEPS per latitude."""
+    # Get spatial dimension names
+    lat_name = None
+    lon_name = None
     
-    Args:
-        climatology: Climatology dataset with dimensions day_of_year × hours × latitude × longitude
-        obs: Observation dataset (used for time alignment)
-        fct_time_values: Forecast initialization times
+    for candidate in ['latitude', 'lat']:
+        if candidate in var_forecast.dims:
+            lat_name = candidate
+            break
     
-    Returns:
-        xr.Dataset: Climatological forecast aligned with verification times
-    """
-    obs_times = obs.time.values
+    for candidate in ['longitude', 'lon']:
+        if candidate in var_forecast.dims:
+            lon_name = candidate
+            break
     
-    # Calculate the target verification times (t+24h)
-    valid_times = []
-    valid_target_times = []
+    if lat_name is None or lon_name is None:
+        raise ValueError(f"Spatial dimensions not found. Available dims: {list(var_forecast.dims)}")
     
-    for t in fct_time_values:
-        if t + np.timedelta64(24, 'h') in obs_times:
-            valid_times.append(t)
-            valid_target_times.append(t + np.timedelta64(24, 'h'))
     
-    # Create arrays for day of year and hour
-    doys = np.array([pd.Timestamp(t).dayofyear for t in valid_target_times])
-    hours = np.array([pd.Timestamp(t).hour for t in valid_target_times])
-    
-    # Extract climatology values for each target time
-    var = 'total_precipitation_24hr'
-    clim_values = []
-    
-    # Extract climatology values for each verification time
-    for i, (doy, hour) in enumerate(zip(doys, hours)):
-        # Select the closest hour in the climatology
-        hour_idx = np.argmin(np.abs(climatology.hour.values - hour))
-        time_slice = climatology[var].sel(dayofyear=doy, hour=climatology.hour.values[hour_idx])
-        clim_values.append(time_slice)
-    
-    # Combine into a single dataset with time dimension
-    clim_forecast = xr.concat(clim_values, dim='time')
-    clim_forecast = clim_forecast.assign_coords(time=valid_target_times)
-    ground_truth = obs.sel(time=valid_target_times)
-    # Create a dataset with the same structure as other forecasts
-    #climatology_forecast = xr.Dataset({var: clim_forecast})
-    dry_threshold = dry_threshold_mm / 1000.0
+    latitudes = var_forecast[lat_name].values
     
     # Get climatological dry fraction (p1)
-    dry_fraction = climatology_seeps[f"{precip_name}_seeps_dry_fraction"]
+    dry_fraction = climatology[f"{variable}_seeps_dry_fraction"]
     p1 = dry_fraction.mean(("hour", "dayofyear")).compute()
     
-    # Function to convert precipitation to SEEPS categories
-    def convert_precip_to_seeps_cat(da):
-        wet_threshold = climatology_seeps[f"{precip_name}_seeps_threshold"]
-        
-        # Select wet threshold for valid time
-        wet_threshold_for_valid_time = wet_threshold.sel(
-            dayofyear=da.time.dt.dayofyear,
-            hour=da.time.dt.hour
-        ).load()
-        
-        # Categorize precipitation
-        dry = da < dry_threshold
-        light = np.logical_and(da > dry_threshold, da < wet_threshold_for_valid_time)
-        heavy = da >= wet_threshold_for_valid_time
-        
-        # Combine categories
-        result = xr.concat(
-            [dry, light, heavy],
-            dim=xr.DataArray(["dry", "light", "heavy"], dims=["seeps_cat"]),
-        )
-        
-        # Convert NaNs back to NaNs
-        result = result.astype("int").where(da.notnull())
-        return result
-    
-    # Extract forecast and observation variables
-    var_forecast = clim_forecast
-    var_obs = ground_truth[precip_name]
-    
-    # Make sure the time dimensions match
-    #var_obs = var_obs.sel(time=slice(var_forecast.time.min(), var_forecast.time.max()))
-    
-    # Handle potentially missing values
-    
-    #common_times = np.intersect1d(var_forecast.time, var_obs.time)
-    #var_forecast = var_forecast.sel(time=common_times)
-    #var_obs = var_obs.sel(time=common_times)
-    
     # Convert to SEEPS categories
-    forecast_cat = convert_precip_to_seeps_cat(var_forecast)
-    obs_cat = convert_precip_to_seeps_cat(var_obs)
+    #print("Converting forecast to SEEPS categories...")
+    forecast_cat = convert_precip_to_seeps_cat(var_forecast, climatology, variable, dry_threshold)
+    
+    #print("Converting observations to SEEPS categories...")
+    obs_cat = convert_precip_to_seeps_cat(var_obs, climatology, variable, dry_threshold)
     
     # Compute contingency table
-    #print('starting expensive out computation')
+    #print("Computing contingency table...")
     out = (
         forecast_cat.rename({"seeps_cat": "forecast_cat"})
         * obs_cat.rename({"seeps_cat": "truth_cat"})
     ).compute()
     
     # Compute scoring matrix
+    #print("Computing scoring matrix...")
     scoring_matrix = [
         [xr.zeros_like(p1), 1 / (1 - p1), 4 / (1 - p1)],
         [1 / p1, xr.zeros_like(p1), 3 / (1 - p1)],
@@ -119,57 +104,63 @@ def compute_seeps_clim_per_lat(climatology, obs, climatology_seeps, fct_time_val
     ]
     
     das = []
-    #print('starting expensive for loop')
     for mat in scoring_matrix:
         das.append(xr.concat(mat, dim=out.truth_cat))
     scoring_matrix = 0.5 * xr.concat(das, dim=out.forecast_cat)
     scoring_matrix = scoring_matrix.compute()
     
     # Take dot product
-    #print('starting expensive dot product')
+    #print("Computing SEEPS scores...")
     result = xr.dot(out, scoring_matrix, dims=("forecast_cat", "truth_cat"))
     
     # Mask out p1 thresholds
     result = result.where(p1 < max_p1, np.nan)
     result = result.where(p1 > min_p1, np.nan)
     
-    # Create output dataset
-    result_ds = xr.Dataset({f"{precip_name}": result})
+    # Average over longitude and time
+    result_per_lat = result.mean(dim=[lon_name, 'time'])
+    
+    total_time = time.time() - start_time
+    print(f"SEEPS computation complete in {total_time:.2f} seconds.")
+    
+    return result_per_lat.values
 
-    result_ds_lon = result_ds.mean('longitude')
-    result_ds_time = result_ds_lon.mean('time')
-        
-    return result_ds_time 
-
-#########################################################################
-#########################################################################
 def standardize_dims(dataset: xr.Dataset) -> xr.Dataset:
-    """Standardize dimension names to time, latitude, longitude."""
+    """Standardize dimension and coordinate names to time, latitude, longitude."""
     dim_mapping = {}
     
-    # Check and map time dimension
     if 'time' not in dataset.dims:
         time_candidates = [dim for dim in dataset.dims if 'time' in dim.lower()]
         if time_candidates:
             dim_mapping[time_candidates[0]] = 'time'
     
-    # Check and map latitude dimension
     if 'latitude' not in dataset.dims:
         if 'lat' in dataset.dims:
             dim_mapping['lat'] = 'latitude'
     
-    # Check and map longitude dimension
     if 'longitude' not in dataset.dims:
         if 'lon' in dataset.dims:
             dim_mapping['lon'] = 'longitude'
     
+    coord_mapping = {}
+    if 'latitude' not in dataset.coords:
+        if 'lat' in dataset.coords:
+            coord_mapping['lat'] = 'latitude'
+    
+    if 'longitude' not in dataset.coords:
+        if 'lon' in dataset.coords:
+            coord_mapping['lon'] = 'longitude'
+    
     if dim_mapping:
-        return dataset.rename(dim_mapping)
+        dataset = dataset.rename(dim_mapping)
+    
+    if coord_mapping and coord_mapping != dim_mapping:
+        dataset = dataset.rename(coord_mapping)
+    
     return dataset
 
 def make_latitude_increasing(dataset: xr.Dataset) -> xr.Dataset:
     """Make sure latitude values are increasing. Flip dataset if necessary."""
-    # Get the latitude dimension name (could be 'lat' or 'latitude')
     lat_name = next((dim for dim in ['latitude', 'lat'] if dim in dataset.dims), None)
     if lat_name is None:
         raise ValueError("No latitude dimension found in the dataset")
@@ -192,178 +183,246 @@ def open_fct(forecast_path):
     forecast = make_latitude_increasing(forecast)
     return forecast
 
+def get_model_name_from_path(file_path):
+    """Extract model name from file path."""
+    filename = os.path.basename(file_path)
     
+    if filename.startswith('persistence_'):
+        return 'persistence'
+    elif filename.startswith('graphcast_'):
+        return 'graphcast'
+    elif filename.startswith('ifs_hres_'):
+        return 'ifs_hres'
+    elif filename.startswith('pangu_'):
+        return 'pangu'
+    elif filename.startswith('clim_'):
+        return 'climatology'
+    else:
+        return filename.split('_')[0]
 
-def compute_seeps_per_lat(forecast, obs, climatology, precip_name="total_precipitation_24hr", 
-                 dry_threshold_mm=0.25, min_p1=0.1, max_p1=0.85):
+def seeps_per_lat(forecast, obs, climatology_seeps, variable, lead_time_hours,
+                  dry_threshold_mm=0.25, min_p1=0.1, max_p1=0.85):
     """
-    Compute Stable Equitable Error in Probability Space (SEEPS) metric.
+    Compute SEEPS per latitude using the reference approach:
+    1. Shift forecast time coordinates by lead_time (init time -> valid time)
+    2. Align forecast and observations on valid time
+    3. Compute SEEPS
     
     Parameters
     ----------
     forecast : xr.Dataset
-        Dataset containing forecast precipitation.
+        Forecast dataset
     obs : xr.Dataset
-        Dataset containing observed precipitation.
-    climatology : xr.Dataset
-        Climatology dataset containing seeps_threshold [meters] and
-        seeps_dry_fraction [0-1] for given precip_name.
-    precip_name : str, optional
-        Name of precipitation variable, default is "total_precipitation_24hr".
-    dry_threshold_mm : float, optional
-        Dry threshold in mm, default is 0.25.
-    min_p1 : float, optional
-        Mask out values with smaller average dry fraction, default is 0.1.
-    max_p1 : float, optional
-        Mask out values with larger average dry fraction, default is 0.85.
-    spatial_avg : bool, optional
-        Whether to perform spatial averaging, default is True.
-    region : Region object, optional
-        Region to compute SEEPS for, default is None.
-        
+        Observation dataset
+    climatology_seeps : xr.Dataset
+        SEEPS climatology with thresholds and dry fraction
+    variable : str
+        Variable name (must be total_precipitation_24hr)
+    lead_time_hours : int
+        Lead time in hours
+    dry_threshold_mm : float
+        Dry threshold in mm (default: 0.25)
+    min_p1 : float
+        Minimum dry fraction threshold (default: 0.1)
+    max_p1 : float
+        Maximum dry fraction threshold (default: 0.85)
+    
     Returns
     -------
-    xr.Dataset
-        Dataset containing SEEPS score.
+    np.ndarray
+        SEEPS values per latitude
     """
+    start_time = time.time()
+    
     # Convert dry threshold to meters (SI units)
     dry_threshold = dry_threshold_mm / 1000.0
     
-    # Get climatological dry fraction (p1)
-    dry_fraction = climatology[f"{precip_name}_seeps_dry_fraction"]
-    #p1 = dry_fraction.mean(("hour", "dayofyear")).compute()
-    p1 = dry_fraction.mean(("hour", "dayofyear")).compute()
+    # Step 1: Shift forecast time coordinates to valid time
+    lead_time_delta = np.timedelta64(lead_time_hours, 'h')
+    forecast_valid = forecast.assign_coords(time=forecast.time + lead_time_delta)
     
-    # Convert precipitation to SEEPS categories (dry, light, heavy)
-    def convert_precip_to_seeps_cat(da):
-        wet_threshold = climatology[f"{precip_name}_seeps_threshold"]
-        #da = ds[precip_name]
-        
-        # Select wet threshold for valid time
-        wet_threshold_for_valid_time = wet_threshold.sel(
-            dayofyear=da.time.dt.dayofyear, 
-            hour=da.time.dt.hour
-        ).load()
-        
-        # Categorize precipitation
-        dry = da < dry_threshold
-        light = np.logical_and(da > dry_threshold, da < wet_threshold_for_valid_time)
-        heavy = da >= wet_threshold_for_valid_time
-        
-        # Combine categories
-        result = xr.concat(
-            [dry, light, heavy],
-            dim=xr.DataArray(["dry", "light", "heavy"], dims=["seeps_cat"]),
-        )
-        
-        # Convert NaNs back to NaNs
-        result = result.astype("int").where(da.notnull())
-        return result
+    # Step 2: Extract the variable
+    var_forecast = forecast_valid[variable]
+    var_obs = obs[variable]
     
-    # Convert forecast and observations to categories
-    forecast_times = forecast.time.values
-    obs_times = obs.time.values
-
-    # Calculate the times in observations that are 24h after each forecast time
-    #target_times = forecast_times + np.timedelta64(24, 'h')
-    # Filter to only include forecast times that have a corresponding obs time 24h later
-    valid_forecast_times = [t for t in forecast_times if t + np.timedelta64(24, 'h') in obs_times]
-    valid_obs_times = valid_forecast_times+ np.timedelta64(24, 'h')
-    # Select only those valid forecast times
-    filtered_forecast = forecast.sel(time=valid_forecast_times)
-    filtered_obs = obs.sel(time = valid_obs_times)
-    filtered_forecast = filtered_forecast.assign_coords(time=valid_obs_times)
-    var = 'total_precipitation_24hr'
-    var_forecast = filtered_forecast[var]
-    var_obs = filtered_obs[var]
-        
-    # Make sure the time dimensions match
-
-    var_obs = var_obs.sel(time=slice(var_forecast.time.min(), var_forecast.time.max()))
-
-    # Handle potentially missing values
+    # Step 3: Align on common valid times
     common_times = np.intersect1d(var_forecast.time, var_obs.time)
     var_forecast = var_forecast.sel(time=common_times)
     var_obs = var_obs.sel(time=common_times)
 
-    forecast_cat = convert_precip_to_seeps_cat(var_forecast)
-    obs_cat = convert_precip_to_seeps_cat(var_obs)
     
-    # Compute contingency table
-    #print('starting expensive out computation')
-    out = (
-        forecast_cat.rename({"seeps_cat": "forecast_cat"})
-        * obs_cat.rename({"seeps_cat": "truth_cat"})
-    ).compute()
-    
-    # Compute scoring matrix
-    scoring_matrix = [
-        [xr.zeros_like(p1), 1 / (1 - p1), 4 / (1 - p1)],
-        [1 / p1, xr.zeros_like(p1), 3 / (1 - p1)],
-        [
-            1 / p1 + 3 / (2 + p1),
-            3 / (2 + p1),
-            xr.zeros_like(p1),
-        ],
-    ]
-    
-    das = []
-    #print('starting expensive for loop')
-    for mat in scoring_matrix:
-        das.append(xr.concat(mat, dim=out.truth_cat))
-    scoring_matrix = 0.5 * xr.concat(das, dim=out.forecast_cat)
-    scoring_matrix = scoring_matrix.compute()
-    
-    # Take dot product
-    #print('starting expensive dot product')
-    result = xr.dot(out, scoring_matrix, dims=("forecast_cat", "truth_cat"))
-    
-    # Mask out p1 thresholds
-    result = result.where(p1 < max_p1, np.nan)
-    result = result.where(p1 > min_p1, np.nan)
-    
-    # Create output dataset
-    result_ds = xr.Dataset({f"{precip_name}": result})
-    
-    result_ds_lon = result_ds.mean('longitude')
-    result_ds_time = result_ds_lon.mean('time')
-        
-    return result_ds_time
+    return _compute_seeps_grid(var_forecast, var_obs, climatology_seeps, variable, 
+                               dry_threshold, min_p1, max_p1, start_time)
 
-def compute_seeps(input_dir):
-    output_dir = input_dir + '/seeps_results/'
-    os.makedirs(output_dir, exist_ok = True)
+def clim_seeps(climatology_forecast, obs, climatology_seeps, forecast_init_times, 
+               variable, lead_time_hours, dry_threshold_mm=0.25, min_p1=0.1, max_p1=0.85):
+    """
+    Compute SEEPS for climatology using the reference approach.
+    """
+    start_time = time.time()
     
-    obs_path = input_dir + 'era5_obs_total_precipitation_24hr_2020.zarr'
+    # Convert dry threshold to meters
+    dry_threshold = dry_threshold_mm / 1000.0
+    
+    # Calculate valid times from forecast initialization times
+    lead_time_delta = np.timedelta64(lead_time_hours, 'h')
+    valid_times = forecast_init_times + lead_time_delta
+    
+    # Filter to times that exist in observations
+    valid_times = [t for t in valid_times if t in obs.time.values]
+    
+    # Get observations at valid times
+    obs_valid = obs.sel(time=valid_times)
+    
+    # Create a time selection dictionary for climatology forecast
+    time_selection = {
+        'dayofyear': xr.DataArray([pd.Timestamp(t).dayofyear for t in valid_times], dims='time')
+    }
+    
+    # Add hour selection if climatology includes hourly data
+    if 'hour' in climatology_forecast.coords:
+        time_selection['hour'] = xr.DataArray([pd.Timestamp(t).hour for t in valid_times], dims='time')
+
+    # Select climatology forecast values based on the time selection
+    clim_forecast = climatology_forecast[variable].sel(time_selection)
+    
+    # Assign the valid times as coordinates to climatology
+    clim_forecast = clim_forecast.assign_coords(time=valid_times)
+    
+    # Get the observations for the same variable
+    var_obs = obs_valid[variable]
+    
+    # Make sure time dimensions match
+    common_times = np.intersect1d(clim_forecast.time, var_obs.time)
+    var_forecast = clim_forecast.sel(time=common_times)
+    var_obs = var_obs.sel(time=common_times)
+
+
+    return _compute_seeps_grid(var_forecast, var_obs, climatology_seeps, variable,
+                               dry_threshold, min_p1, max_p1, start_time)
+
+def compute_seeps(input_dir, lead_times=[24, 48, 72], dry_threshold_mm=0.25, 
+                  min_p1=0.1, max_p1=0.85):
+    """
+    Compute SEEPS for precipitation forecasts at multiple lead times.
+    
+    Parameters
+    ----------
+    input_dir : str
+        Input directory containing forecast and observation data
+    lead_times : list
+        Lead times in hours to compute SEEPS for
+    dry_threshold_mm : float
+        Dry threshold in mm
+    min_p1 : float
+        Minimum dry fraction threshold
+    max_p1 : float
+        Maximum dry fraction threshold
+    """
+    output_dir = os.path.join(input_dir, 'seeps_results')
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # SEEPS is only for precipitation
+    variable = 'total_precipitation_24hr'
+    
+    obs_path = os.path.join(input_dir, f'era5_obs_{variable}_2020.zarr')
+    
+    if not os.path.exists(obs_path):
+        raise FileNotFoundError(f"Observation file not found: {obs_path}")
+    
+    #print(f"Loading observations from: {obs_path}")
     obs = open_obs(obs_path)
+    
+    # Load SEEPS climatology (this is always the same, independent of lead time)
+    #print("\nLoading SEEPS climatology...")
+    climatology_seeps_path = "gs://weatherbench2/datasets/era5-hourly-climatology/1990-2019_6h_240x121_equiangular_with_poles_conservative.zarr"
+    climatology_seeps = xr.open_zarr(climatology_seeps_path)
+    climatology_seeps = make_latitude_increasing(climatology_seeps)
+    #print("SEEPS climatology loaded successfully")
+    
+    # Loop over each lead time
+    for lead_time_hours in lead_times:
+        
+        # Find all forecast files for this variable and lead time
+        forecast_patterns = [
+            f'graphcast_ifs_{variable}_{lead_time_hours}h_2020.zarr',
+            f'ifs_hres_{variable}_{lead_time_hours}h_2020.zarr', 
+            f'persistence_{variable}_{lead_time_hours}h_2020.zarr'
+        ]
+        
+        forecast_init_times = None
+        
+        for pattern in forecast_patterns:
+            fct_path = os.path.join(input_dir, pattern)
+            if os.path.exists(fct_path):
+                print(f"\nProcessing forecast: {pattern}")
+                forecast = open_fct(fct_path)
+                
+                # Store forecast initialization times for climatology processing
+                if forecast_init_times is None:
+                    forecast_init_times = forecast.time.values
+                
+                seeps_vals = seeps_per_lat(forecast, obs, climatology_seeps, variable, 
+                                          lead_time_hours, dry_threshold_mm, min_p1, max_p1)
+                model_name = get_model_name_from_path(pattern)
+                
+                # Save results
+                seeps_file = os.path.join(output_dir, f'seeps_{model_name}_{variable}_lead{lead_time_hours}h.txt')
+                
+                np.savetxt(seeps_file, seeps_vals)
+                
+                print(f"Saved SEEPS results to: {seeps_file}")
+            else:
+                print(f"Warning: Forecast file not found: {fct_path}")
 
-    #climatology = xr.open_dataset('./precip_data/global_seeps_climatology.nc')
-    climatology = xr.open_zarr("gs://weatherbench2/datasets/era5-hourly-climatology/1990-2019_6h_240x121_equiangular_with_poles_conservative.zarr")#xr.open_dataset('./precip_data/global_seeps_climatology.nc')
-    climatology = make_latitude_increasing(climatology)
-
-    forecast_paths = ['graphcast_ifs_total_precipitation_24hr_2020.zarr', 'ifs_hres_total_precipitation_24hr_2020.zarr', 'persistence_total_precipitation_24hr_2020.zarr']
-    names = ['graphcast_ifs', 'ifs_hres', 'persistence']
-
-    seeps_vals_list = list()
-    for fct_path, save_name in zip(forecast_paths, names):
-        forecast = open_fct(input_dir + fct_path)
-        seeps_lat = compute_seeps_per_lat(forecast, obs, climatology)
-        seeps_lat.to_netcdf(output_dir + 'seeps_'+save_name+'.nc')
-
-    time_fct = forecast.time.values
-
-    # Climatology:
-    climatology_forecast = open_fct(input_dir + 'clim_total_precipitation_24hr_2020.zarr')
-    seeps_lat = compute_seeps_clim_per_lat(climatology_forecast, obs, climatology, time_fct)
-    seeps_lat.to_netcdf(output_dir + 'seeps_climatology.nc')
+        # Process climatology for this lead time
+        clim_path = os.path.join(input_dir, f'clim_{variable}_{lead_time_hours}h_2020.zarr')
+        if os.path.exists(clim_path):
+            print(f"\nProcessing climatology: {clim_path} at {lead_time_hours}h lead time")
+            climatology_forecast = open_fct(clim_path)
+            
+            if forecast_init_times is None:
+                raise ValueError("No forecast files were processed successfully. Cannot determine forecast times for climatology.")
+            
+            seeps_vals = clim_seeps(climatology_forecast, obs, climatology_seeps, 
+                                   forecast_init_times, variable, lead_time_hours,
+                                   dry_threshold_mm, min_p1, max_p1)
+            
+            # Save climatology results
+            seeps_file = os.path.join(output_dir, f'seeps_climatology_{variable}_lead{lead_time_hours}h.txt')
+            
+            np.savetxt(seeps_file, seeps_vals)
+            
+            print(f"Saved climatology SEEPS results to: {seeps_file}")
+        else:
+            print(f"Warning: Climatology file not found: {clim_path}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Description of your program')
-    parser.add_argument('--input_dir', type=str, default='./fct_data/', help='Output file path')
+    parser = argparse.ArgumentParser(
+        description='Compute SEEPS (Stable Equitable Error in Probability Space) for precipitation forecasts at multiple lead times'
+    )
+    parser.add_argument('--input_dir', type=str, 
+                       default='./fct_data/', 
+                       help='Input directory containing the forecast and observation data')
+    parser.add_argument('--lead_times', type=int, nargs='+', default=[24],
+                       help='Lead times in hours to compute SEEPS for (default: 24 48 72)')
+    parser.add_argument('--dry_threshold_mm', type=float, default=0.25,
+                       help='Dry threshold in mm (default: 0.25)')
+    parser.add_argument('--min_p1', type=float, default=0.1,
+                       help='Minimum dry fraction threshold (default: 0.1)')
+    parser.add_argument('--max_p1', type=float, default=0.85,
+                       help='Maximum dry fraction threshold (default: 0.85)')
+    
     args = parser.parse_args()
-    input_dir = args.input_dir
-    compute_seeps(input_dir)
+    
+    # Ensure input directory exists and has proper format
+    input_dir = args.input_dir.rstrip('/')
+    if not os.path.exists(input_dir):
+        raise FileNotFoundError(f"Input directory does not exist: {input_dir}")
+    
+    compute_seeps(input_dir, args.lead_times, args.dry_threshold_mm, 
+                 args.min_p1, args.max_p1)
     return 0
 
 if __name__ == "__main__":
