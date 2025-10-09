@@ -1,4 +1,4 @@
-# WeatherBench2 Evaluation 
+# WeatherBench2 Case Study
 
 A Python pipeline for evaluating weather forecast models using WeatherBench2 data.
 
@@ -18,7 +18,7 @@ bash run_multi_var.sh
 
 1. **Downloads** forecast data from WeatherBench2 (GraphCast, IFS HRES, Persistence, Climatology)
 2. **Computes** evaluation metrics (RMSE, ACC, CMA, SEEPS)
-3. **Generates** publication-ready plots
+3. **Generates** plots
 
 ## Requirements
 
@@ -37,10 +37,10 @@ Python 3.8+ required.
 
 ## Evaluation Metrics
 
-- **RMSE** - Root Mean Square Error (lower is better)
-- **ACC** - Anomaly Correlation Coefficient (higher is better, -1 to 1)
-- **CMA** - Conditional Monotonic Association (higher is better, 0 to 1)
-- **SEEPS** - Precipitation-specific metric (lower is better)
+- **RMSE** - Root Mean Square Error
+- **ACC** - Anomaly Correlation Coefficient 
+- **CMA** - Coefficient of monotone association
+- **SEEPS** - Stable equitable error in probability space
 
 ## Customization
 
