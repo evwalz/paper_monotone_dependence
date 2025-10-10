@@ -260,12 +260,6 @@ def plot_precipitation_metrics(input_dir, output_dir, lead_times=[24],
         plt.savefig(output_file_pdf, bbox_inches='tight', dpi=300)
         print(f"  Saved PDF: {output_file_pdf}")
         
-        # Also save as PNG for easy viewing
-        output_file_png = os.path.join(output_dir, 
-                                       f'precipitation_{filename_suffix}_lead{lead_time}h.png')
-        plt.savefig(output_file_png, bbox_inches='tight', dpi=300)
-        print(f"  Saved PNG: {output_file_png}")
-        
         plt.close()
     
     print("\nAll plots completed!")
