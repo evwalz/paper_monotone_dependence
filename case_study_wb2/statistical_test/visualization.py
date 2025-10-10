@@ -6,6 +6,46 @@ from matplotlib.cm import Blues, Purples
 from scipy.stats import norm
 import argparse
 
+def create_print_safe_colors_option1_refined():
+    """Refined version with better print saturation"""
+    # Keep your blues but make them slightly more saturated for print
+    blue_colors = [
+        '#08306b',  # Very dark blue - perfect
+        '#08519c',  # Dark blue - perfect  
+        '#2171b5',  # Blue - perfect
+        '#4292c6',  # Medium blue - perfect
+        '#6baed6',  # Light blue - perfect
+        '#9ecae1',  # Very light blue - perfect
+        '#c6dbef',  # Pale blue - perfect
+        '#deebf7',  # Very pale blue - perfect
+        '#f0f8ff',  # Almost white blue - slightly more visible than pure white
+        '#f8fcff'   # Very light blue instead of white for better distinction
+    ]
+    
+    # Keep your oranges but adjust the lightest ones for better print visibility
+    orange_colors = [
+        '#7f2704',  # Very dark orange - perfect
+        '#a63603',  # Dark orange - perfect
+        '#cc4c02',  # Orange - perfect
+        '#d9621a',  # Medium orange - perfect
+        '#ec7014',  # Light orange - perfect
+        '#fd8d3c',  # Very light orange - perfect
+        '#fdb567',  # Pale orange - perfect
+        '#fdd49e',  # Very pale orange - perfect
+        '#fff5eb',  # Almost white orange - more visible than pure white
+        '#fffaf5'   # Very light orange instead of white
+    ]
+    
+    return blue_colors, orange_colors
+
+blue_colors, orange_colors = create_print_safe_colors_option1_refined()
+purple_colors = orange_colors  # Use orange instead of purple
+
+threshold_color = '#d84315'
+cma_color = '#6d4c41'
+background_color = '#fafafa'
+grid_color = '#e0e0e0'
+
 
 def plot_pvals(forecast_name, input_dir):
     name_fct1 = forecast_name[0]
@@ -19,10 +59,16 @@ def plot_pvals(forecast_name, input_dir):
     p_val_single = norm.cdf(diff / np.sqrt(S_var))
 
     # Color scheme
-    threshold_color = '#e67e22'
-    cma_color = '#8e24aa'
+    base_color = '#134e5e'
+    light_color = '#71b1bd'
+    median_color = '#1a478a'
+    threshold_color = 'black'#'#8e24aa'
+    cma_color = '#cc4c02'#'#d84315' 
+    p_color = blue_colors[1]#'#2171b5'
+    whisker_color = '#455a64'
     background_color = '#f9f9f9'
     grid_color = '#ecf0f1'
+    border_color = '#2c3e50'
 
     # Use your existing data calculations
     X = 1-p_val_single
@@ -95,22 +141,6 @@ def plot_pvals(forecast_name, input_dir):
     x_end = 121 - 0  # Remove 8 points from right side
     x_range = np.arange(x_start, x_end)
 
-    # Create blue colors for p-values (ORIGINAL)
-    blue_colors = []
-    for i in range(10):
-        color_val = 0.8 - (i * 0.07)  # From 0.8 to 0.1
-        rgb = Blues(color_val)[:3]  # Get RGB values (exclude alpha)
-        hex_color = f'#{int(rgb[0]*255):02x}{int(rgb[1]*255):02x}{int(rgb[2]*255):02x}'
-        blue_colors.append(hex_color)
-
-    # Create purple colors for CMA difference (NEW)
-    purple_colors = []
-    for i in range(10):
-        color_val = 0.8 - (i * 0.07)  # From 0.8 to 0.1
-        rgb = Purples(color_val)[:3]  # Get RGB values (exclude alpha)
-        hex_color = f'#{int(rgb[0]*255):02x}{int(rgb[1]*255):02x}{int(rgb[2]*255):02x}'
-        purple_colors.append(hex_color)
-
     # ORIGINAL P-VALUE SHADING (BLUE) - exactly as before
     for i in range(x_start, x_end):
         width = 1.0
@@ -157,13 +187,13 @@ def plot_pvals(forecast_name, input_dir):
                 ax.add_patch(segment)
 
     # Update the reference lines (ORIGINAL)
-    plt.axhline(0.05, color=threshold_color, linestyle='-', linewidth=1, 
+    plt.axhline(0.05, color=threshold_color, linestyle='-', linewidth=2, 
         label='Thresholds (0.05 and 0.95)', zorder=5)
-    plt.axhline(0.95, color=threshold_color, linestyle='-', linewidth=1)#, 
+    plt.axhline(0.95, color=threshold_color, linestyle='-', linewidth=2)#, 
                 #label='Threshold (0.95)', zorder=5)
     # Update rectangle patch for legend (ORIGINAL)
-    rectangle_patch = Patch(facecolor=blue_colors[4], edgecolor=blue_colors[4], 
-                    alpha=0.85, label='IQR p-values')
+    rectangle_patch = Patch(facecolor=p_color, edgecolor=p_color, 
+                            alpha=0.85, label='IQR p-values')
     #(25th-75th percentile)
 
     # Create a secondary y-axis (ORIGINAL)
@@ -239,9 +269,10 @@ def plot_pvals(forecast_name, input_dir):
     # Set appropriate axis limits and labels (ORIGINAL)
     ax.set_xlim(x_start, x_end-1)  # Set the x-axis limits to match our trimmed data
     ax.set_ylim(0, 1)
-    ax.set_xlabel('Latitude (degrees)', fontsize=16, color='#34495e')
-    ax.set_ylabel('p-value', fontsize=16, color='#34495e')
+    ax.set_xlabel('Latitude (degrees)', fontsize=16, color='black') 
+    ax.set_ylabel('p-value', fontsize=16, color=p_color)
 
+    ax.tick_params(axis='y', colors=p_color)  # Added color to y-axis ticks
     ax.tick_params(axis='both', which='major', labelsize=14, width=1.5, length=6)
     ax2.tick_params(axis='y', colors=cma_color, labelsize=14, width=1.5, length=6)
 
@@ -250,8 +281,8 @@ def plot_pvals(forecast_name, input_dir):
     handles_ax2, labels_ax2 = ax2.get_legend_handles_labels()
 
     # Add CMA rectangle patch for legend
-    cma_rectangle_patch = Patch(facecolor=purple_colors[4], edgecolor=purple_colors[4], 
-                    alpha=0.7, label='IQR CMA differences')
+    cma_rectangle_patch = Patch(facecolor=cma_color, edgecolor=cma_color, 
+                                alpha=0.7, label='IQR CMA differences')
 
     # Add our rectangle patches to the handles
     handles_all = handles_ax1 + handles_ax2
@@ -272,9 +303,9 @@ def plot_pvals(forecast_name, input_dir):
               fontsize=14)
 
     # ORIGINAL COLORBAR CODE (unchanged)
-    x_start_cbar = 87+3  # approximately 40°N in your coordinate system
-    x_end_cbar = 113+3   # approximately 80°N
-    y_position = 0.11  # Moved higher to accommodate both colorbars
+    x_start_cbar = 87+5  # approximately 40°N in your coordinate system
+    x_end_cbar = 113+5   # approximately 80°N
+    y_position = 0.13  # Moved higher to accommodate both colorbars
     colorbar_height = 0.03
 
     # Define the color sequence that matches your quantile segments
@@ -367,7 +398,7 @@ def plot_pvals(forecast_name, input_dir):
         ax.plot([x_pos, x_pos], [y_position_purple, y_position_purple - 0.015], 
             color='black', linewidth=0.8)
         # Add labels with larger font and no rotation for better readability
-        ax.text(x_pos, y_position - 0.07, label, 
+        ax.text(x_pos, y_position - 0.05, label, 
            ha='center', va='top', fontsize=10)
 
 

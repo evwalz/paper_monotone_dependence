@@ -2,7 +2,7 @@
 
 Evaluation of Large Language Models.
 
-## Dependencies
+## Setup
 
 This case study requires the [Rank-Calibration](https://github.com/shuoli90/Rank-Calibration) repository as a dependency. Please follow these steps to set up the environment:
 
@@ -68,6 +68,48 @@ python create_table_single.py
 python create_visualization.py
 ```
 
+## Directory Structure
+
+```
+.
+├── compute_cma_seeds.py      # Bootstrap analysis
+├── compute_table.py          # Statistical testing
+├── create_table.py           # Table generation
+├── plot_cma_seeds.py         # Visualization
+├── run_cma_seeds.sh          # Bootstrap runner
+└── run_table.sh              # Statistical test runner
+```
+
 ## Acknowledgments
 
 For original code and data, see [Rank calibration](https://github.com/shuoli90/Rank-Calibration)
+
+## Citation
+
+```
+Huang, X., Li, S., Yu, M., Sesia, M., Hassani, H., Lee, I., Bastani, O., 
+& Dobriban, E. (2024). Uncertainty in Language Models: Assessment through 
+Rank-Calibration. In Proceedings of the 2024 Conference on Empirical Methods 
+in Natural Language Processing (pp. 284-312).
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

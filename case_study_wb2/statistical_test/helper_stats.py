@@ -219,7 +219,7 @@ def comp_rho_cma(y_rank, x_rank):
     N = len(y_rank)
     mean_rank = (N + 1) / 2
     var_y =  np.sum((y_rank - np.mean(y_rank))**2)*(1/(N-1))
-    rho_val = (12 / (N ** 2)) * (1 / (N - 1)) * np.sum((x_rank - mean_rank) * (y_rank - mean_rank))
+    rho_val = (12 / (N ** 3)) * np.sum((x_rank - mean_rank) * (y_rank - mean_rank))
     cma_val = (np.cov(y_rank, x_rank)[0, 1] / var_y + 1) / 2
     return rho_val, cma_val
 
