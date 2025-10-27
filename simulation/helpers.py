@@ -159,7 +159,7 @@ def comp_rho_cma(y_rank, x_rank):
     N = len(y_rank)
     mean_rank = (N + 1) / 2
     var_y =  np.sum((y_rank - np.mean(y_rank))**2)*(1/(N-1))
-    rho_val = (12 / (N ** 2)) * (1 / (N - 1)) * np.sum((x_rank - mean_rank) * (y_rank - mean_rank))
+    rho_val = (12 / (N ** 3)) * np.sum((x_rank - mean_rank) * (y_rank - mean_rank))
     cma_val = (np.cov(y_rank, x_rank)[0, 1] / var_y + 1) / 2
     return rho_val, cma_val
 
@@ -231,8 +231,6 @@ def Sigma_fast2(y_rank, xarray_ranks):
     })
 
     return cmas, S, cmas_pd
-
-
 
 
 def one_dim_test(y_rank, x_rank):
@@ -337,7 +335,6 @@ def calc_pvalue_chi_our(aucs, S):
     # Calculate p-value using chi-squared distribution
     p = chi2.sf(z, df=rank) 
     return z, p, aucdiff
-
 
 
 
@@ -498,6 +495,61 @@ def run_simulation_meng_our(n, T = 10000, discrete = False, alternative="two.sid
             ps_our.append(p_val_our)
 
     return ps_meng, ps_our
+
+
+def run_simulation_our(n, T = 10000, discrete = False, alternative="two.sided"):
+    sigma_2 = sigma_1 = 1
+
+    ps_our = []
+    if discrete:
+        for i in tqdm(range(T), desc=f"n={n}"):
+            X_0 = np.random.normal(0, 1, n)
+            Z_1 = np.random.normal(0, sigma_1, n)
+            Z_2 = np.random.normal(0, sigma_2, n)
+            Y_0 = np.round(np.random.normal(X_0, 1, n))
+            X_1 =np.round(X_0 + Z_1)
+            X_2 = np.round(X_0 + Z_2)
+
+            test_obj = agc_stat_test(Y_0, np.vstack((X_1, X_2)))
+            p_val_our = test_obj.global_p
+            ps_our.append(p_val_our)
+    else:
+        for i in tqdm(range(T), desc=f"n={n}"):
+            X_0 = np.random.normal(0, 1, n)
+            Z_1 = np.random.normal(0, sigma_1, n)
+            Z_2 = np.random.normal(0, sigma_2, n)
+            Y_0 = np.random.normal(X_0, 1, n)
+            X_1 =X_0 + Z_1
+            X_2 = X_0 + Z_2
+            test_obj = agc_stat_test(Y_0, np.vstack((X_1, X_2)))
+            p_val_our = test_obj.global_p
+            ps_our.append(p_val_our)
+
+    return ps_our
+
+
+def run_simulation_DL_our(n, T = 10000, alternative="two.sided"):
+    sigma_2 = sigma_1 = 1
+    
+    ps_dl = []
+    ps_our = []
+    for i in tqdm(range(T), desc=f"n={n}"):
+        X_0 = np.random.normal(0, 1, n)
+        bin_p = stats.norm.cdf(X_0)
+        Y_0 = np.random.binomial(1, bin_p, n)
+        Z_1 = np.random.normal(0, 1, n)
+        Z_2 = np.random.normal(0, 1, n)
+        prob_1 = X_0 + Z_1
+        prob_2 = X_0 + Z_2
+        X_0 = np.vstack((prob_1, prob_2))
+
+        test_obj = agc_stat_test(Y_0, X_0)
+        p_val_our = test_obj.global_p
+        p_val_dl = dl_stat_test(Y_0, X_0, alternative = alternative)
+        ps_dl.append(p_val_dl) 
+        ps_our.append(p_val_our)
+
+    return ps_dl, ps_our
 
 
 

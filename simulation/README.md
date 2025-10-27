@@ -4,10 +4,14 @@ This study runs statistical siginificance tests on simulated data
 
 ## Usage
 
-Computes p-values based on simulated data and generates PDF with corresponding Histograms.
+Computes p-values based on simulated data and generates Histograms.
 
 ```bash
-python hist_simulated_pvals.py
+bash run_simulation.sh
+```
+
+```bash
+bash plot_simulation.sh
 ```
 
 ## Requirements
