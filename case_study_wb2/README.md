@@ -22,6 +22,8 @@ bash run_precip.sh
 bash run_multi_var.sh
 ```
 
+**Git:** The directory **`fct_data/`** is for local downloads and computed outputs only. **`.gitignore`** excludes **`fct_data/*.zarr/`** and **`fct_data/*_results/`** (metric `.txt` trees). Nothing under `fct_data/` should be pushed to GitHub; reproduce it with the steps above. To drop large blobs that were committed earlier, rewrite history (see e.g. [`git filter-repo`](https://github.com/newren/git-filter-repo)) and force-push, or accept that old commits still contain them.
+
 ## What It Does
 
 1. **Downloads** forecast data from WeatherBench2 (GraphCast, IFS HRES, Persistence, Climatology)

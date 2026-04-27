@@ -1,0 +1,4 @@
+# Local WeatherBench2 data and derived metrics (not versioned).
+# Populate with download_data.py and the compute_*.py scripts; see README.
+fct_data/*.zarr/
+fct_data/*_results/
