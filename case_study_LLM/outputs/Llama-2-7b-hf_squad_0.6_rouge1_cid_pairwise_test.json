@@ -1,9 +1,0 @@
-{
-  "best_method": "ecc_u_agreement",
-  "best_cid": 0.4972063355327193,
-  "second_best_method": "entropy_unnormalized",
-  "second_best_cid": 0.45769014357488236,
-  "var_best": 1.346877032245865e-07,
-  "var_second_best": 5.575256368698539e-06,
-  "cov": 1.2295679693182572e-07
-}

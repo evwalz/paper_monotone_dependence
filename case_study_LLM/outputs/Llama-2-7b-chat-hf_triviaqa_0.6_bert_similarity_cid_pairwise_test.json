@@ -1,9 +1,0 @@
-{
-  "best_method": "entropy_unnormalized",
-  "best_cid": 0.6941207348570967,
-  "second_best_method": "degree_u_agreement",
-  "second_best_cid": 0.6880427118381343,
-  "var_best": 6.635578412118475e-07,
-  "var_second_best": 5.934171782016174e-07,
-  "cov": 4.6985889001878486e-07
-}

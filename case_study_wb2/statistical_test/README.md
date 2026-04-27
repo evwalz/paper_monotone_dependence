@@ -31,7 +31,7 @@ The rest of the WeatherBench2 pipeline (without CMA/CID from `compute_cma_cid.py
 | `config.py` | Forecasts, variable, lead time, `DATA_DIR`, `OUTPUTS_DIR`, `PLOTS_DIR`. |
 | `full_grid_acor_test.py` | Zarr → per-cell `acor_test` (CMA or CID) → `outputs/*.txt` and `.npz`. |
 | `visualization.py` | Reads grids from `outputs/`; writes PDFs to `plots/` (see `argparse`). |
-| `outputs/` | Grids and small example `.txt` files (bulky `.npz` may be gitignored). |
+| `outputs/` | Grids (`.txt` / `.npz`) from `full_grid_acor_test.py`; listed in **`.gitignore`** — not committed to GitHub. |
 
 ```bash
 # CMA (default) or CID: --method cma | --method cid

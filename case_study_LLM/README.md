@@ -55,7 +55,7 @@ python plot_calibration_bootstrap.py
 python create_table.py
 ```
 
-- **`outputs/`** — generated JSON only (large; **gitignored** in this repo).  
+- **`outputs/`** — generated JSON only (large); **`.gitignore`** excludes it from Git — reproduce with the shell scripts above.  
 - **`figures/`** — final **`table_cma.pdf`**, **`table_cid.pdf`**, and **`calibration_bootstrap_scatter.pdf`** (intended to be **committed**). Override with `--input_dir` / `--output_dir` / `--output_plot` if you split files elsewhere.
 
 ## Acknowledgments

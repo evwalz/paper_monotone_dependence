@@ -11,6 +11,8 @@ Shared DGP and `acor_test` alternative mapping: **`calibration_dgp.py`** (at thi
 
 **Naming:** In both **`agc/`** and **`akc/`** the grid driver is **`run_simulation.sh`**, and the default output directory is **`results/`** inside that folder (so `agc/results/` vs `akc/results/` — no name collision).
 
+**Git:** **`agc/results/`** and **`akc/results/`** are listed in **`simulation/.gitignore`** and are not committed (`.npy` files and the PDF histograms produced there). Regenerate them with the shell scripts and `plot_p_values` commands below.
+
 ## Dependencies
 
 Install **`acor`** (not on this repo’s default path):
@@ -94,7 +96,7 @@ simulation/
     helpers.py
     simulation_p_values.py
     plot_p_values.py
-    results/            # default --output_dir for AGC (created on run)
+    results/            # default --output_dir for AGC (gitignored)
   akc/
     run_simulation.sh   # same name as in agc/
     helpers.py          # AKC+Zou Monte Carlo (mirrors agc/helpers.py)
@@ -103,5 +105,5 @@ simulation/
     zou_numba.py
     simulation_p_values.py
     plot_p_values.py
-    results/            # default --output_dir (mirrors agc/results/)
+    results/            # default --output_dir (gitignored)
 ```

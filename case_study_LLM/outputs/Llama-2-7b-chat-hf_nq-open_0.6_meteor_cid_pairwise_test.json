@@ -1,9 +1,0 @@
-{
-  "best_method": "entropy_unnormalized",
-  "best_cid": 0.6430161775324504,
-  "second_best_method": "spectral_u_agreement",
-  "second_best_cid": 0.6309561750648236,
-  "var_best": 6.986831354600587e-06,
-  "var_second_best": 6.686541665602902e-06,
-  "cov": 4.691371374488968e-06
-}

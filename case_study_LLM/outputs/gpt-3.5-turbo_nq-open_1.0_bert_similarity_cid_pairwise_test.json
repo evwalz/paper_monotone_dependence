@@ -1,9 +1,0 @@
-{
-  "best_method": "unnormalized_nll_all",
-  "best_cid": 0.6908806094382518,
-  "second_best_method": "spectral_u_agreement",
-  "second_best_cid": 0.6808319179671173,
-  "var_best": 2.0062038770915125e-06,
-  "var_second_best": 1.8455465238426485e-06,
-  "cov": 1.0188498678292707e-06
-}

@@ -1,9 +1,0 @@
-{
-  "best_method": "degree_u_agreement",
-  "best_cma": 0.6557502071342757,
-  "second_best_method": "spectral_u_agreement",
-  "second_best_cma": 0.6493068733672028,
-  "var_best": 8.089533522695244e-06,
-  "var_second_best": 8.10299590906873e-06,
-  "cov": 7.954542174998975e-06
-}
