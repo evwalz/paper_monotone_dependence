@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import xarray as xr
 import numpy as np
 import os
@@ -6,6 +8,37 @@ import sys
 import argparse
 import time
 import glob
+
+# SEEPS in this module follows the standard precipitation construction (dry / light / heavy)
+# using the WeatherBench2 ERA5 **SEEPS climatology** (GCS zarr path below). A variable only works
+# if that zarr exposes ``{variable}_seeps_threshold`` and ``{variable}_seeps_dry_fraction`` — i.e.
+# the same name must match the climatology fields, not just local forecast/obs zarrs. The default
+# ``total_precipitation_24hr`` is the usual precip accumulation for this pipeline. ``--dry_threshold_mm``
+# is the *dry* cutoff in mm, separate from the climatological wet/conditional thresholds.
+
+
+def _seeps_climatology_var_names(variable: str) -> tuple[str, str]:
+    return f"{variable}_seeps_threshold", f"{variable}_seeps_dry_fraction"
+
+
+def _assert_variable_in_seeps_climatology(
+    climatology_seeps: xr.Dataset, variable: str, climatology_label: str
+) -> None:
+    t_key, p1_key = _seeps_climatology_var_names(variable)
+    data_vars = set(climatology_seeps.data_vars)
+    missing = [k for k in (t_key, p1_key) if k not in data_vars]
+    if not missing:
+        return
+    raise ValueError(
+        f"SEEPS is implemented here for variables present in the ERA5 SEEPS climatology "
+        f"({climatology_label}).\n"
+        f"  Missing: {', '.join(missing)}\n"
+        f"Meteorological SEEPS for this workflow is for **precipitation**-style fields that "
+        f"have matching `*_seeps_threshold` and `*_seeps_dry_fraction` in that dataset; "
+        f"choose a variable that exists (e.g. `total_precipitation_24hr`) or a different method "
+        f"for other quantities."
+    )
+
 
 def convert_precip_to_seeps_cat(da, climatology, variable, dry_threshold):
     """
@@ -217,7 +250,7 @@ def seeps_per_lat(forecast, obs, climatology_seeps, variable, lead_time_hours,
     climatology_seeps : xr.Dataset
         SEEPS climatology with thresholds and dry fraction
     variable : str
-        Variable name (must be total_precipitation_24hr)
+        Precip field name; must match ``{variable}_seeps_*`` in the SEEPS climatology (see top-of-file).
     lead_time_hours : int
         Lead time in hours
     dry_threshold_mm : float
@@ -301,8 +334,14 @@ def clim_seeps(climatology_forecast, obs, climatology_seeps, forecast_init_times
     return _compute_seeps_grid(var_forecast, var_obs, climatology_seeps, variable,
                                dry_threshold, min_p1, max_p1, start_time)
 
-def compute_seeps(input_dir, lead_times=[24, 48, 72], dry_threshold_mm=0.25, 
-                  min_p1=0.1, max_p1=0.85):
+def compute_seeps(
+    input_dir,
+    lead_times=None,
+    dry_threshold_mm=0.25,
+    min_p1=0.1,
+    max_p1=0.85,
+    variable="total_precipitation_24hr",
+):
     """
     Compute SEEPS for precipitation forecasts at multiple lead times.
     
@@ -318,12 +357,14 @@ def compute_seeps(input_dir, lead_times=[24, 48, 72], dry_threshold_mm=0.25,
         Minimum dry fraction threshold
     max_p1 : float
         Maximum dry fraction threshold
+    variable : str
+        Precipitation accumulation name; must match zarr **and** the SEEPS fields in the ERA5
+        climatology (``{name}_seeps_threshold``, ``{name}_seeps_dry_fraction``).
     """
-    output_dir = os.path.join(input_dir, 'seeps_results')
+    if lead_times is None:
+        lead_times = [24, 48, 72]
+    output_dir = os.path.join(input_dir, "seeps_results")
     os.makedirs(output_dir, exist_ok=True)
-    
-    # SEEPS is only for precipitation
-    variable = 'total_precipitation_24hr'
     
     obs_path = os.path.join(input_dir, f'era5_obs_{variable}_2020.zarr')
     
@@ -338,6 +379,9 @@ def compute_seeps(input_dir, lead_times=[24, 48, 72], dry_threshold_mm=0.25,
     climatology_seeps_path = "gs://weatherbench2/datasets/era5-hourly-climatology/1990-2019_6h_240x121_equiangular_with_poles_conservative.zarr"
     climatology_seeps = xr.open_zarr(climatology_seeps_path)
     climatology_seeps = make_latitude_increasing(climatology_seeps)
+    _assert_variable_in_seeps_climatology(
+        climatology_seeps, variable, climatology_seeps_path
+    )
     #print("SEEPS climatology loaded successfully")
     
     # Loop over each lead time
@@ -400,11 +444,29 @@ def compute_seeps(input_dir, lead_times=[24, 48, 72], dry_threshold_mm=0.25,
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Compute SEEPS (Stable Equitable Error in Probability Space) for precipitation forecasts at multiple lead times'
+        description=(
+            "Compute SEEPS (Stable Equitable Error in Probability Space) for **precipitation** "
+            "forecasts, using the WeatherBench2 ERA5 SEEPS climatology (per-variable dry/wet "
+            "thresholds and dry-fraction). Only variables that exist in that climatology work "
+            "(e.g. total_precipitation_24hr). Use --dry_threshold_mm for the *dry* category cut "
+            "in millimetres of accumulation, consistent with the chosen variable."
+        )
     )
-    parser.add_argument('--input_dir', type=str, 
-                       default='./fct_data/', 
-                       help='Input directory containing the forecast and observation data')
+    parser.add_argument(
+        "--input_dir",
+        type=str,
+        default="./fct_data/",
+        help="Input directory containing the forecast and observation data",
+    )
+    parser.add_argument(
+        "--variable",
+        type=str,
+        default="total_precipitation_24hr",
+        help=(
+            "Precip variable stem (zarrs and ERA5 SEEPS fields must all match this name; "
+            "default: total_precipitation_24hr)"
+        ),
+    )
     parser.add_argument('--lead_times', type=int, nargs='+', default=[24],
                        help='Lead times in hours to compute SEEPS for (default: 24 48 72)')
     parser.add_argument('--dry_threshold_mm', type=float, default=0.25,
@@ -421,8 +483,14 @@ def main():
     if not os.path.exists(input_dir):
         raise FileNotFoundError(f"Input directory does not exist: {input_dir}")
     
-    compute_seeps(input_dir, args.lead_times, args.dry_threshold_mm, 
-                 args.min_p1, args.max_p1)
+    compute_seeps(
+        input_dir,
+        args.lead_times,
+        args.dry_threshold_mm,
+        args.min_p1,
+        args.max_p1,
+        variable=args.variable,
+    )
     return 0
 
 if __name__ == "__main__":

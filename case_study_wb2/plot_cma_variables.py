@@ -71,8 +71,8 @@ def plot_cma_four_panel(input_dir, output_dir, lead_times=[24, 72],
     # Color mapping for models
     color_codes = sns.color_palette("colorblind", 6)
     model_color_map = {
-        'Persistence': color_codes[2],
-        'Climatology': '#9467bd',
+        'Persistence': '#9467bd',
+        'Climatology': color_codes[2],
         'GraphCast': color_codes[0],
         'Pangu': color_codes[4],
         'IFS HRES': color_codes[1],

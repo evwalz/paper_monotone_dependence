@@ -1,74 +1,43 @@
-# Statistical Testing Pipeline
+# Full-grid CMA/CID statistical testing (WeatherBench 2)
 
-Performing statistical tests on WeatherBench 2.
+## Install `acor` (required)
 
-## Overview
+Run this **before** any script in this folder. The case study’s [`../requirements.txt`](../requirements.txt) does not include it.
 
-The pipeline is divided into three main steps:
-
-1. Split the grid into chunks for parallel processing
-2. Process each chunk independently  
-3. Combine results from all chunks
-
-## Configuration
-
-The pipeline uses a central configuration file (`config.py`) to ensure consistency across all scripts.
-
-## Scripts
-
-### 1. split_data_stat_test.py
-
-Splits the grid data into chunks for parallel processing:
-- Reads forecast and observation data from zarr files
-- Standardizes dimension names
-- Aligns data in time and space
-- Divides the grid into chunks
-- Saves chunk information and forecast names in grid_info.pkl
-
-### 2. process_chunks.py
-
-Processes a single chunk of the grid:
-- Takes a chunk index as command-line argument
-- Loads the corresponding data
-- Computes statistical metrics for each grid point in the chunk
-- Saves results for this chunk
-
-### 3. chunks_reassemble.py
-
-Combines results from all chunks:
-- Loads chunk information, including forecast names from grid_info.pkl
-- Reads all processed chunk files
-- Reassembles the results into complete grids
-- Saves the final results with the correct forecast names
-
-## Usage
-
-1. Edit `config.py` to set your forecast names and other parameters
-2. Run the pipeline scripts in sequence:
+**From PyPI** (after a release is published):
 
 ```bash
-# Step 1: Split data into chunks
-python split_data.py
-
-# Step 2: Process chunks (can be run in parallel)
-# Example: Process chunk 0
-python process_chunks.py 0
-
-# For parallel processing on multiple cores/machines (./run_chunks.sh)
-for i in {0..99}; do
-    python process_chunks.py $i &
-done
-
-# Step 3: Reassemble results
-python chunks_reassemble.py
+pip install acor
 ```
 
-## Dependencies
+**From GitHub** (works even when PyPI is not up to date):
 
-- Python 3.x
-- Required Python packages:
-  - numpy>=1.21.0
-  - scipy>=1.7.0
-  - numba>=0.54.0
-  - xarray>=0.20.0
-  - zarr>=2.10.0
+```bash
+pip install "git+https://github.com/evwalz/acor-python.git"
+```
+
+Source and build details: [acor-python](https://github.com/evwalz/acor-python).
+
+The same **`acor`** install is required by [`../compute_cma_cid.py`](../compute_cma_cid.py) for CMA/CID metric outputs (`cma_results/`, `cindx_results/`).
+
+---
+
+The rest of the WeatherBench2 pipeline (without CMA/CID from `compute_cma_cid.py` and without this folder) only needs [`../requirements.txt`](../requirements.txt). This folder is optional: pairwise CMA or CID *inference* on a full lat–lon grid, plus `visualization.py` for PDF plots. You also need the usual case-study stack from [`../requirements.txt`](../requirements.txt) and zarr data (paths in `config.py`).
+
+**Layout** (mirrors the rest of WB2: use **`outputs/`** for gridded / numeric products and **`plots/`** for PDFs, like `../plots/` in the main case study).
+
+| File | Role |
+|------|------|
+| `config.py` | Forecasts, variable, lead time, `DATA_DIR`, `OUTPUTS_DIR`, `PLOTS_DIR`. |
+| `full_grid_acor_test.py` | Zarr → per-cell `acor_test` (CMA or CID) → `outputs/*.txt` and `.npz`. |
+| `visualization.py` | Reads grids from `outputs/`; writes PDFs to `plots/` (see `argparse`). |
+| `outputs/` | Grids and small example `.txt` files (bulky `.npz` may be gitignored). |
+
+```bash
+# CMA (default) or CID: --method cma | --method cid
+python full_grid_acor_test.py
+python full_grid_acor_test.py --method cid
+python visualization.py   # with the flags you need
+```
+
+`--check_zarr` only loads data and prints shapes (no inference). Performance of `acor` (native vs pure-Python) is determined by the installed `acor` package; see the [acor-python](https://github.com/evwalz/acor-python) README.

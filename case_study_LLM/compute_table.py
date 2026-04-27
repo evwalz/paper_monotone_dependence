@@ -1,416 +1,369 @@
+import argparse
+import json
 import os
 import sys
-import argparse
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
-import json
-from scipy.stats import rankdata
-from scipy.special import comb
-from numba import jit, prange
 
-epsilon = 1e-3
+_CASE_STUDY_LLM_DIR = os.path.dirname(os.path.abspath(__file__))
+_DEFAULT_LLM_OUTPUT = os.path.join(_CASE_STUDY_LLM_DIR, "outputs")
 
-def unique_with_counts_v2(arr):
-    """Optimized version for large arrays - use numpy's built-in for 100k+ data"""
-    return np.unique(arr, return_counts=True)
+# acor (Python) acor_test for CMA and CID. Tags match prior JSON layout.
+METHODS = ["cma", "cid"]
 
-def prob_y_v2(y):
-    """Optimized probability computation for large arrays"""
-    unique, counts = unique_with_counts_v2(y)
-    probabilities = counts / len(y)
-    return probabilities[np.searchsorted(unique, y)]
+# Match acor.test-style defaults: IID, variance="delta", alternative="two.sided", etc.
+ACOR_IID = True
+ACOR_VARIANCE = "delta"
+ACOR_ALTERNATIVE = "two.sided"
+ACOR_CONF_LEVEL = 0.95
+ACOR_FISHER = False
 
 
-def comp_rho_cma_v2(y_rank, x_rank):
-    """Optimized correlation computations for large datasets"""
-    N = len(y_rank)
-    mean_rank = (N + 1) * 0.5
-    
-    # For large arrays, use numpy's optimized functions
-    y_centered = y_rank - mean_rank
-    x_centered = x_rank - mean_rank
-    
-    # Use numpy's var which is highly optimized for large arrays
-    var_y = np.var(y_rank, ddof=1)
-    
-    # Optimized computations using dot products
-    dot_product = np.dot(x_centered, y_centered)
-    rho_val = (12.0 / (N * N * N)) * dot_product
-    
-    cov_xy = dot_product / (N - 1)
-    cma_val = (cov_xy / var_y + 1) * 0.5
-    
-    return rho_val, cma_val
+def _run_py_single(y: np.ndarray, x: np.ndarray, method: str):
+    """One predictor: return {"estimate": scalar, "variance": scalar}."""
+    from acor import acor_test
+
+    X = np.asarray(x, dtype=np.float64).reshape(-1, 1)
+    res = acor_test(
+        X,
+        np.asarray(y, dtype=np.float64),
+        method=method,
+        alternative=ACOR_ALTERNATIVE,
+        conf_level=ACOR_CONF_LEVEL,
+        iid=ACOR_IID,
+        fisher=ACOR_FISHER,
+        variance=ACOR_VARIANCE,
+    )
+    est_arr = np.asarray(res.estimate, dtype=np.float64).ravel()
+    if est_arr.size != 1:
+        raise RuntimeError(f"single predictor: expected 1 estimate, got {est_arr.shape}")
+    est = float(est_arr[0])
+    V = np.asarray(res.variance, dtype=np.float64)
+    var = float(V.ravel()[0])
+    return {"estimate": est, "variance": var}
 
 
-@jit(nopython=True, parallel=True, cache=True)
-def mean_sign_x_numba(x_ranks_sorted, y_ranks_sorted, x_unique, y_unique):
-    """
-    Numba-compiled core computation - should be 10-50x faster
-    """
-    N = len(x_ranks_sorted)
-    R = len(x_unique)
-    M = len(y_unique)
-        
-    mean_sign_x = np.zeros((R, M), dtype=np.float64)
-    inv_N = 1.0 / N
-        
-    # Parallel computation across unique values
-    for i in prange(R):
-        for j in range(M):
-            sign_sum = 0.0
-            for k in range(N):
-                if x_ranks_sorted[k] > x_unique[i]:
-                    sign_x = 1.0
-                elif x_ranks_sorted[k] < x_unique[i]:
-                    sign_x = -1.0
-                else:
-                    sign_x = 0.0
-                    
-                if y_ranks_sorted[k] > y_unique[j]:
-                    sign_y = 1.0
-                elif y_ranks_sorted[k] < y_unique[j]:
-                    sign_y = -1.0
-                else:
-                    sign_y = 0.0
-                    
-                sign_sum += sign_x * sign_y
-                
-            mean_sign_x[i, j] = sign_sum * inv_N
-        
-    return mean_sign_x
-    
-def bivariate_mdf_expected_signbased_numba(x_ranks, y_ranks):
-    """
-     Numba-accelerated version for maximum performance
-    """
-    N = len(x_ranks)
-        
-    x_unique = np.unique(x_ranks)
-    y_unique, y_counts = np.unique(y_ranks, return_counts=True)
-        
-    R = len(x_unique)
-    M = len(y_unique)
-        
-    inv_N = 1.0 / N
-    G_x_unique = (x_unique - 0.5) * inv_N
-    G_y_unique = (y_unique - 0.5) * inv_N
-        
-    sort_idx = np.argsort(y_ranks)
-    x_ranks_sorted = x_ranks[sort_idx]
-    y_ranks_sorted = y_ranks[sort_idx]
-        
-    x_indices = np.searchsorted(x_unique, x_ranks_sorted)
-    G_x_full = G_x_unique[x_indices]
-        
-    # Use numba for the core computation
-    mean_sign_x = mean_sign_x_numba(x_ranks_sorted, y_ranks_sorted, x_unique, y_unique)
-        
-    # Rest of computation (vectorized)
-    mean_sign_selected = mean_sign_x[x_indices, :]
-    G_x_broadcast = G_x_full[:, np.newaxis]
-    G_y_broadcast = G_y_unique[np.newaxis, :]
-        
-    all_exp = mean_sign_selected + 2 * G_x_broadcast + 2 * G_y_broadcast - 1
-        
-    y_positions = np.concatenate(([0], np.cumsum(y_counts)))
-    g_1 = np.zeros(N)
-        
-    column_sums = np.sum(all_exp, axis=0) * inv_N
-    for i in range(M):
-        g_1[y_positions[i]:y_positions[i+1]] = column_sums[i]
-        
-    g_2 = np.sum(all_exp * y_counts[np.newaxis, :], axis=1) * inv_N
-        
-    g_1 *= 0.25
-    g_2 *= 0.25
-        
-    reverse_idx = np.empty_like(sort_idx)
-    reverse_idx[sort_idx] = np.arange(N)
-        
-    return g_1[reverse_idx], g_2[reverse_idx]
+def _run_py_pairwise(y: np.ndarray, x1: np.ndarray, x2: np.ndarray, method: str):
+    """Two predictors: return {"estimate": [e1,e2], "variance": 2x2 list-of-lists}."""
+    from acor import acor_test
+
+    X = np.column_stack(
+        [
+            np.asarray(x1, dtype=np.float64),
+            np.asarray(x2, dtype=np.float64),
+        ]
+    )
+    res = acor_test(
+        X,
+        np.asarray(y, dtype=np.float64),
+        method=method,
+        alternative=ACOR_ALTERNATIVE,
+        conf_level=ACOR_CONF_LEVEL,
+        iid=ACOR_IID,
+        fisher=ACOR_FISHER,
+        variance=ACOR_VARIANCE,
+    )
+    est = np.asarray(res.estimate, dtype=np.float64).ravel()
+    if est.size != 2:
+        raise RuntimeError(f"pairwise: expected 2 estimates, got {est.shape}")
+    V = np.asarray(res.variance, dtype=np.float64)
+    if V.shape != (2, 2):
+        raise RuntimeError(f"pairwise: expected 2x2 variance matrix, got {V.shape}")
+    return {"estimate": est.tolist(), "variance": V.tolist()}
 
 
-def Sigma_new(y_rank, xarray_ranks):
-    N = len(y_rank)
-    k = xarray_ranks.shape[0]
+def cma_batch(y: np.ndarray, indicators: dict, methods=None):
+    """Run CMA and CID on uncertainty indicators vs correctness (acor in Python)."""
+    if methods is None:
+        methods = METHODS
+    indicator_names = list(indicators.keys())
+    out = {}
+    for m in methods:
+        single_results = {}
+        est_vals = np.empty(len(indicator_names), dtype=np.float64)
+        for i, nm in enumerate(indicator_names):
+            res = _run_py_single(y, indicators[nm], m)
+            single_results[nm] = res
+            est_vals[i] = res["estimate"]
 
-    zeta_3Y = 1-(12/N**2)*np.var(y_rank)
-    denum_zeta = 1-zeta_3Y
-    k_zeta = prob_y_v2(y_rank) ** 2 - zeta_3Y
-    
-    rhos = np.zeros(k)
-    cmas = np.zeros(k)
-    rho_K = np.zeros(k)
-    kernel_K = np.zeros(k)
+        sorted_idx = np.argsort(-est_vals, kind="stable")
+        best_name = indicator_names[sorted_idx[0]]
+        second_best_name = indicator_names[sorted_idx[1]]
 
-    #ftilde_results, gtilde_results = compute_all_ftilde_gtilde(X_ranks, y_ranks)
-    ftilde_results = np.zeros((N, k))
-    gtilde_results = np.zeros((N, k))
-    
-    for j in range(k):
-        rhos[j], cmas[j] = comp_rho_cma_v2(y_rank, xarray_ranks[j, :])
-        g_1, g_2 = bivariate_mdf_expected_signbased_numba(xarray_ranks[j, :], y_rank)
-        ftilde_results[:, j] = g_1#bivariate_mdf_expected_over_y_per_x_vectorized(xarray_ranks[j, :], y_rank)
-        gtilde_results[:, j] = g_2#bivariate_mdf_expected_over_y_per_x_vectorized(y_rank, xarray_ranks[j, :])
-        
-    rho_K_1 = (rhos[0]* k_zeta)/denum_zeta
-    rho_K_2 = (rhos[1]* k_zeta)/denum_zeta
-
-    Fbar = (xarray_ranks - 0.5) / N
-    Gbar = (y_rank - 0.5) / N
-
-    K_1 = 4*(ftilde_results[:, 0] + gtilde_results[:, 0] + Fbar[0, :]*Gbar - Fbar[0, :]- Gbar) + 1 - rhos[0]
-    K_2 = 4*(ftilde_results[:, 1] + gtilde_results[:, 1] + Fbar[1, :]*Gbar - Fbar[1, :]- Gbar) + 1 - rhos[1]
-    
-    #kernel_K[j] = 4*FG_xy(k, xarray_ranks, y_rank, ftilde_results, gtilde_results) + 1-rhos[j]
-
-    
-    sigma = np.zeros((2, 2))
-    sigma[0, 0] = np.mean((K_1 +rho_K_1)**2)
-    sigma[1, 1] =np.mean((K_2 +rho_K_2)**2)
-    sigma[0, 1] = np.mean((K_1 +rho_K_1)*(K_2 +rho_K_2))
-    sigma[1, 0] = sigma[0, 1]
-    sigma = (9 / (denum_zeta)**2)*sigma 
-    return sigma / (4*N), cmas
+        pw = _run_py_pairwise(
+            y, indicators[best_name], indicators[second_best_name], m
+        )
+        out[m] = {
+            "single_results": single_results,
+            "pairwise": {
+                "best": best_name,
+                "second_best": second_best_name,
+                "estimate": pw["estimate"],
+                "variance": pw["variance"],
+            },
+        }
+    return out
 
 
-def Sigma_single(y_rank, x_rank):
-    N = len(y_rank)
-    k = 1
-
-    zeta_3Y = 1-(12/N**2)*np.var(y_rank)
-    denum_zeta = 1-zeta_3Y
-    k_zeta = prob_y_v2(y_rank) ** 2 - zeta_3Y
-    
-    #rhos = np.zeros(k)
-    #cmas = np.zeros(k)
-    #rho_K = np.zeros(k)
-    #kernel_K = np.zeros(k)
-
-    #ftilde_results, gtilde_results = compute_all_ftilde_gtilde(X_ranks, y_ranks)
-    #ftilde_results = np.zeros((N, k))
-    #gtilde_results = np.zeros((N, k))
-    
-    rhos, cmas = comp_rho_cma_v2(y_rank, x_rank)
-    g_1, g_2 = bivariate_mdf_expected_signbased_numba(x_rank, y_rank)
-    ftilde_results = g_1#bivariate_mdf_expected_over_y_per_x_vectorized(xarray_ranks[j, :], y_rank)
-    gtilde_results = g_2#bivariate_mdf_expected_over_y_per_x_vectorized(y_rank, xarray_ranks[j, :])
-        
-    rho_K_1 = (rhos* k_zeta)/denum_zeta
-    #rho_K_2 = (rhos[1]* k_zeta)/denum_zeta
-
-    Fbar = (x_rank - 0.5) / N
-    Gbar = (y_rank - 0.5) / N
-
-    K_1 = 4*(g_1 + g_2 + Fbar*Gbar - Fbar- Gbar) + 1 - rhos
-    #K_2 = 4*(ftilde_results[:, 1] + gtilde_results[:, 1] + Fbar[1, :]*Gbar - Fbar[1, :]- Gbar) + 1 - rhos[1]
-    
-    #kernel_K[j] = 4*FG_xy(k, xarray_ranks, y_rank, ftilde_results, gtilde_results) + 1-rhos[j]
-
-    
-    #sigma = np.zeros((2, 2))
-    sigma = np.mean((K_1 + rho_K_1)**2)
-    #sigma[1, 1] =np.mean((K_2 +rho_K_2)**2)
-    #sigma[0, 1] = np.mean((K_1 +rho_K_1)*(K_2 +rho_K_2))
-    #sigma[1, 0] = sigma[0, 1]
-    sigma = (9 / (denum_zeta)**2)*sigma 
-    return sigma / (4*N), cmas
-
-
-def cma_pairwise_test(y, x):
-    y_ranks = rankdata(y, method='average')
-    xarray_ranks = np.apply_along_axis(rankdata, axis=1, arr=x, method='average')
-    Smat, cmas = Sigma_new(y_ranks, xarray_ranks)
-    return Smat, cmas
-
-def cma_sd_new(y, x):
-    y_ranks = rankdata(y, method='average')
-    x_ranks = rankdata(x, method='average')
-    sd_value, cma_value = Sigma_single(y_ranks, x_ranks)
-    return sd_value, cma_value
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--rank_calibration_path', type=str, required=True,
-                        help='Base path for rank calibration data')
-    parser.add_argument('--root_dir', type=str, 
-                       default=None,
-                       help='Root directory containing calibration results')
-    parser.add_argument('--output_dir', type=str, 
-                       default=None,
-                       help='Output directory for saving results')
-    parser.add_argument('--correctness', type=str, default='rouge',
-                       help='Correctness metric to use')
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf',
-                       help='Model to evaluate')
-    parser.add_argument('--temperature', type=float, default=0.6,
-                       help='Temperature parameter')
-    parser.add_argument('--dataset', type=str, default='triviaqa',
-                       help='Dataset to use')
-    parser.add_argument('--mode', type=str, default='rougeL',
-                       help='Evaluation mode')
-    parser.add_argument('--metric', type=str, default='cma',
-                       choices=['cma', 'erce'],
-                       help='Metric to use for visualization (CMA or ERCE)')
+    parser.add_argument(
+        "--rank_calibration_path",
+        type=str,
+        required=True,
+        help="Base path for rank calibration data",
+    )
+    parser.add_argument(
+        "--root_dir",
+        type=str,
+        default=None,
+        help="Root directory containing calibration results",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default=None,
+        help="Output directory for JSON results (default: case_study_LLM/outputs/)",
+    )
+    parser.add_argument(
+        "--correctness",
+        type=str,
+        default="rouge",
+        help="Correctness metric to use",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="meta-llama/Llama-2-7b-chat-hf",
+        help="Model to evaluate",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.6,
+        help="Temperature parameter",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="triviaqa",
+        help="Dataset to use",
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="rougeL",
+        help="Evaluation mode",
+    )
+    parser.add_argument(
+        "--metric",
+        type=str,
+        default="cma",
+        choices=["cma", "erce"],
+        help="Metric to use for visualization (CMA or ERCE)",
+    )
     args = parser.parse_args()
 
     if args.root_dir is None:
-        args.root_dir = os.path.join(args.rank_calibration_path, 'submission/calibration_results')
+        args.root_dir = os.path.join(
+            args.rank_calibration_path, "submission/calibration_results"
+        )
     if args.output_dir is None:
-        args.output_dir = os.path.join(args.rank_calibration_path, 'stat_test_result')
+        args.output_dir = _DEFAULT_LLM_OUTPUT
 
-    # Create output directory if it doesn't exist
-    sys.path.insert(0, os.path.abspath(args.rank_calibration_path))
-    #from metrics import calibration
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # list all csv files in the root directory
     print(f"Loading files from {args.root_dir}")
-    file_names = [file for file in os.listdir(args.root_dir) if file.endswith('.json')]
-    model = args.model.split('/')[-1]
-    
-    # compute the correctness score
-    scores_file = os.path.join(args.root_dir, f"{model}_{args.dataset}_{args.temperature}_{args.correctness}.json")
-    if os.path.exists(scores_file):
-        scores = json.load(open(scores_file))
-    else:
-        raise ValueError(f"File not found: {scores_file}")
-    scores = pd.DataFrame(scores).dropna(axis=0)
-
-    model = args.model.split('/')[-1]
+    model = args.model.split("/")[-1]
     dataset = args.dataset
+
+    scores_file = os.path.join(
+        args.root_dir,
+        f"{model}_{dataset}_{args.temperature}_{args.correctness}.json",
+    )
+    if not os.path.exists(scores_file):
+        raise ValueError(f"File not found: {scores_file}")
+    scores = pd.DataFrame(json.load(open(scores_file))).dropna(axis=0)
+
     file_names = []
-    for method in ['whitebox', 'blackbox']:
-        if method == 'whitebox':
-            affinity_mode = 'none'
-            file_name = "_".join(['calibrate', model, dataset, str(args.temperature), affinity_mode, 'whitebox']) + '.json'
-            file_names.append(file_name)
-        #elif method == 'verbalized':
-        #    #try:
-        #    #    file_name = "_".join(['calibrate', model, dataset, str(args.temperature), 'disagreement', 'verbalized']) + '.json'
-        #    #    file_names.append(file_name)
-        #    #except:
-        #    #    continue
-        #    file_name = "_".join(['calibrate', model, dataset, str(args.temperature), 'disagreement', 'verbalized']) + '.json'
-        #    if os.path.exists(os.path.join(args.root_dir, file_name)):
-        #        file_names.append(file_name)
+    for method in ["whitebox", "blackbox"]:
+        if method == "whitebox":
+            fn = (
+                "_".join(
+                    [
+                        "calibrate",
+                        model,
+                        dataset,
+                        str(args.temperature),
+                        "none",
+                        "whitebox",
+                    ]
+                )
+                + ".json"
+            )
+            file_names.append(fn)
         else:
-            for affinity_mode in ['disagreement', 'agreement']:
-                file_name = "_".join(['calibrate', model, dataset, str(args.temperature), affinity_mode, 'blackbox']) + '.json'
-                file_names.append(file_name)
+            for affinity_mode in ["disagreement", "agreement"]:
+                fn = (
+                    "_".join(
+                        [
+                            "calibrate",
+                            model,
+                            dataset,
+                            str(args.temperature),
+                            affinity_mode,
+                            "blackbox",
+                        ]
+                    )
+                    + ".json"
+                )
+                file_names.append(fn)
+
     data_whitebox = json.load(open(os.path.join(args.root_dir, file_names[0])))
-    data_blackbox_disagreement = json.load(open(os.path.join(args.root_dir, file_names[1])))
-    data_blackbox_agreement = json.load(open(os.path.join(args.root_dir, file_names[2])))
+    data_blackbox_disagreement = json.load(
+        open(os.path.join(args.root_dir, file_names[1]))
+    )
+    data_blackbox_agreement = json.load(
+        open(os.path.join(args.root_dir, file_names[2]))
+    )
 
+    indices = list(range(len(data_whitebox)))
     tmps = []
-    #seeds = list(range(20))
-    #for seed in seeds:
-        #print(seed)
-        #np.random.seed(seed)
-    indices = np.arange(len(data_whitebox)).tolist()
-    data_whitebox_bootstrap = [data_whitebox[index] for index in indices]
-    data_blackbox_disagreement_bootstrap = [data_blackbox_disagreement[index] for index in indices]
-    data_blackbox_agreement_bootstrap = [data_blackbox_agreement[index] for index in indices]
+    for idx, (index, row_wb, row_bd, row_ba) in tqdm(
+        enumerate(
+            zip(
+                indices,
+                data_whitebox,
+                data_blackbox_disagreement,
+                data_blackbox_agreement,
+            )
+        ),
+        total=len(data_whitebox),
+    ):
+        tmp = {
+            "model": model,
+            "dataset": dataset,
+            "metric": args.correctness,
+            "temperature": args.temperature,
+        }
 
+        tmp["ecc_c_disagreement"] = row_bd["ecc_c"]
+        tmp["degree_c_disagreement"] = row_bd["degree_c"]
+        tmp["ecc_u_disagreement"] = [row_bd["ecc_u"]] * 10
+        tmp["degree_u_disagreement"] = [row_bd["degree_u"]] * 10
+        tmp["spectral_u_disagreement"] = [row_bd["spectral_u"]] * 10
 
-    #tmps = []
-    for idx, (index, row_whitebox, row_blackbox_disagreement, row_blackbox_agreement) in tqdm(enumerate(zip(indices, data_whitebox_bootstrap, data_blackbox_disagreement_bootstrap, data_blackbox_agreement_bootstrap)), total=len(data_whitebox)):
-        tmp = {'model':model, 'dataset':dataset, 'metric':args.correctness, 'temperature':args.temperature}
+        tmp["ecc_c_agreement"] = row_ba["ecc_c"]
+        tmp["degree_c_agreement"] = row_ba["degree_c"]
+        tmp["ecc_u_agreement"] = [row_ba["ecc_u"]] * 10
+        tmp["degree_u_agreement"] = [row_ba["degree_u"]] * 10
+        tmp["spectral_u_agreement"] = [row_ba["spectral_u"]] * 10
 
-        tmp['ecc_c_disagreement'] = row_blackbox_disagreement['ecc_c']
-        tmp['degree_c_disagreement'] = row_blackbox_disagreement['degree_c']
-        tmp['ecc_u_disagreement'] = [row_blackbox_disagreement['ecc_u']] * 10
-        tmp['degree_u_disagreement'] = [row_blackbox_disagreement['degree_u']] * 10
-        tmp['spectral_u_disagreement'] = [row_blackbox_disagreement['spectral_u']] * 10
+        tmp["entropy_normalized"] = [row_wb["entropy_normalized"]] * 10
+        tmp["entropy_unnormalized"] = [row_wb["entropy_unnormalized"]] * 10
+        tmp["normalized_nll_all"] = row_wb["normalized_nll"]
+        tmp["unnormalized_nll_all"] = row_wb["unnormalized_nll"]
 
-        tmp['ecc_c_agreement'] = row_blackbox_agreement['ecc_c']
-        tmp['degree_c_agreement'] = row_blackbox_agreement['degree_c']
-        tmp['ecc_u_agreement'] = [row_blackbox_agreement['ecc_u']] * 10
-        tmp['degree_u_agreement'] = [row_blackbox_agreement['degree_u']] * 10
-        tmp['spectral_u_agreement'] = [row_blackbox_agreement['spectral_u']] * 10
+        score = scores[scores["id"] == index]
+        tmp["normalized_score_all"] = score.iloc[0]["normalized_score"]
+        tmp["unnormalized_score_all"] = score.iloc[0]["unnormalized_score"]
+        normalized_min_index = np.argmin(tmp["normalized_nll_all"])
+        unnormalized_min_index = np.argmin(tmp["unnormalized_nll_all"])
+        tmp["normalized_score_greedy"] = tmp["normalized_score_all"][
+            normalized_min_index
+        ]
+        tmp["unnormalized_score_greedy"] = tmp["unnormalized_score_all"][
+            unnormalized_min_index
+        ]
 
-        tmp['entropy_normalized'] = [row_whitebox['entropy_normalized']] * 10
-        tmp['entropy_unnormalized'] = [row_whitebox['entropy_unnormalized']] * 10
-        tmp['normalized_nll_all'] = row_whitebox['normalized_nll']
-        tmp['unnormalized_nll_all'] = row_whitebox['unnormalized_nll']
-
-                # select scores with the same index
-         
-        score = scores[scores['id'] == index]
-        tmp['normalized_score_all'] = score.iloc[0]['normalized_score']
-        tmp['unnormalized_score_all'] = score.iloc[0]['unnormalized_score']
-        normalized_min_index = np.argmin(tmp['normalized_nll_all'])
-        unnormalized_min_index = np.argmin(tmp['unnormalized_nll_all'])
-        tmp['normalized_score_greedy'] = tmp['normalized_score_all'][normalized_min_index]
-        tmp['unnormalized_score_greedy'] = tmp['unnormalized_score_all'][unnormalized_min_index]
         tmps.append(tmp)
-
-
 
     df = pd.DataFrame(tmps).dropna(axis=0)
 
-    uncertainty_indicators = ['ecc_u_agreement', 'degree_u_agreement', 'spectral_u_agreement', 
-                                    'unnormalized_nll_all','entropy_unnormalized']
-        
-        
-    correctness_scores = np.stack(df['normalized_score_all']).flatten()
-    result = {'model': model, 'dataset': dataset, 'metric': args.correctness, 'temperature': args.temperature}
+    uncertainty_indicators = [
+        "ecc_u_agreement",
+        "degree_u_agreement",
+        "spectral_u_agreement",
+        "unnormalized_nll_all",
+        "entropy_unnormalized",
+    ]
 
-    cma_values = {}
-    
+    correctness_scores = np.stack(df["normalized_score_all"]).flatten()
+
+    indicator_data = {}
     for indicator in uncertainty_indicators:
-        
-        uncertainty = np.stack(df[indicator]).flatten() if 'verbalized' not in indicator else -np.stack(df[indicator]).flatten()
-        #erce = calibration.plugin_RCE_est(correctness=correctness_scores, uncertainties=uncertainty, num_bins=20, p=1)
-        #result[f'{indicator}_erce'] = erce
-            # compute CMA
-        #cma_val = cma(response=correctness_scores, predictor=-uncertainty)
-        #result[f'{indicator}_cma'] = cma_val
+        if "verbalized" in indicator:
+            uncertainty = -np.stack(df[indicator]).flatten()
+        else:
+            uncertainty = np.stack(df[indicator]).flatten()
+        indicator_data[indicator] = -uncertainty
 
-        # compute p-values
-        sd_value, cma_value = cma_sd_new(correctness_scores, -uncertainty)
-        result[f'{indicator}_sd'] = sd_value
-        result[f'{indicator}_cma'] = cma_value
+    print(
+        f"Calling acor (Python) for CMA and CID on "
+        f"{len(indicator_data)} indicators over n={len(correctness_scores)} samples..."
+    )
+    batch_result = cma_batch(correctness_scores, indicator_data, methods=METHODS)
 
-        cma_values[indicator] = cma_value
-    
-        #results.append(tmp)
-    
-    # Update the output file path to use the specified output directory
-    output_file = os.path.join(args.output_dir, f'{model}_{args.dataset}_{args.temperature}_{args.correctness}_stat_test.json')
-    with open(output_file, 'w') as f:
-        json.dump(result, f)
+    n = len(correctness_scores)
 
-    # find to biggest CMA values
-    sorted_methods = sorted(cma_values.items(), key=lambda x: x[1], reverse=True)
-    best_method = sorted_methods[0][0]
-    second_best_method = sorted_methods[1][0]
+    for method_name in METHODS:
+        method_result = batch_result[method_name]
+        is_cma = method_name == "cma"
+        file_tag = "cma" if is_cma else "cid"
+        value_suffix = "cma" if is_cma else "cid"
 
-    # STEP 3: Prepare uncertainty data for pairwise test
-    uncertainty_1 = -1*np.stack(df[best_method]).flatten()
-    uncertainty_2 = -1*np.stack(df[second_best_method]).flatten()
-
-    X = np.vstack((uncertainty_1, uncertainty_2))
-
-    Smat, cmas = cma_pairwise_test(correctness_scores, X)
-    var1 = Smat[0, 0]
-    var2 = Smat[1, 1]
-    cov12 = Smat[0, 1]
-    cma1 = cmas[0]
-    cma2 = cmas[1]
-
-    pairwise_output = {
-            'best_method': best_method,
-            'best_cma': cma1,
-            'second_best_method': second_best_method,
-            'second_best_cma': cma2,
-            'var_best': var1, 
-            'var_second_best': var2,
-            'cov': cov12
+        result = {
+            "model": model,
+            "dataset": dataset,
+            "metric": args.correctness,
+            "temperature": args.temperature,
         }
-        
-    output_file = os.path.join(args.output_dir, f'{model}_{args.dataset}_{args.temperature}_{args.correctness}_pairwise_test.json')
-    with open(output_file, 'w') as f:
-        json.dump(pairwise_output, f, indent=2)
+
+        for indicator in uncertainty_indicators:
+            sr = method_result["single_results"][indicator]
+            result[f"{indicator}_sd"] = sr["variance"] / n
+            result[f"{indicator}_{value_suffix}"] = sr["estimate"]
+
+        stat_path = os.path.join(
+            args.output_dir,
+            f"{model}_{dataset}_{args.temperature}_{args.correctness}_{file_tag}_stat_test.json",
+        )
+        with open(stat_path, "w") as f:
+            json.dump(result, f)
+
+        pw = method_result["pairwise"]
+        best_method = pw["best"]
+        second_best_method = pw["second_best"]
+        est_vec = pw["estimate"]
+        var_mat = np.array(pw["variance"])
+
+        if is_cma:
+            pairwise_output = {
+                "best_method": best_method,
+                "best_cma": float(est_vec[0]),
+                "second_best_method": second_best_method,
+                "second_best_cma": float(est_vec[1]),
+                "var_best": float(var_mat[0, 0] / n),
+                "var_second_best": float(var_mat[1, 1] / n),
+                "cov": float(var_mat[0, 1] / n),
+            }
+        else:
+            pairwise_output = {
+                "best_method": best_method,
+                "best_cid": float(est_vec[0]),
+                "second_best_method": second_best_method,
+                "second_best_cid": float(est_vec[1]),
+                "var_best": float(var_mat[0, 0] / n),
+                "var_second_best": float(var_mat[1, 1] / n),
+                "cov": float(var_mat[0, 1] / n),
+            }
+        pair_path = os.path.join(
+            args.output_dir,
+            f"{model}_{dataset}_{args.temperature}_{args.correctness}_{file_tag}_pairwise_test.json",
+        )
+
+        with open(pair_path, "w") as f:
+            json.dump(pairwise_output, f, indent=2)
+
+    print(f"Done. Wrote JSONs under {args.output_dir}")

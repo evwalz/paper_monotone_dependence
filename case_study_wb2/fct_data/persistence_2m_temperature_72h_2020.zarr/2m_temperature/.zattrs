@@ -1,0 +1,10 @@
+{
+    "_ARRAY_DIMENSIONS": [
+        "time",
+        "longitude",
+        "latitude"
+    ],
+    "long_name": "2 metre temperature",
+    "short_name": "t2m",
+    "units": "K"
+}

@@ -1,6 +1,5 @@
 numpy>=1.21.0
 scipy>=1.7.0
-numba>=0.54.0
 xarray>=0.20.0
 zarr>=2.10.0
 matplotlib>=3.4.0
@@ -12,4 +11,8 @@ netCDF4>=1.5.8
 cartopy>=0.20.0
 cfgrib>=0.9.9.0
 eccodes>=1.3.0
-google-cloud-storage>=2.0.0 
+google-cloud-storage>=2.0.0
+tqdm>=4.62.0
+# compute_cma_cid.py (CMA/CID) and statistical_test/ also need acor, e.g.:
+#   pip install "git+https://github.com/evwalz/acor-python.git"
+#   (or: pip install acor)

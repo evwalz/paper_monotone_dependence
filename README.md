@@ -1,12 +1,9 @@
 # Assessing Monotone Dependence: Area Under the Curve Meets Rank Correlation
 
-<!--
-**Assessing Monotone Dependence: Area Under the Curve Meets Rank Correlation**  
 Eva-Maria Walz, Andreas Eberl, Tilmann Gneiting
-*Preprint coming soon*
-Preprint available at: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)
--->
-<!--
+
+**Preprint:** [arXiv:2510.17994](https://arxiv.org/abs/2510.17994)
+
 If you use this code in your research, please cite:
 
 ```bibtex
@@ -14,13 +11,12 @@ If you use this code in your research, please cite:
   title={Assessing Monotone Dependence: Area Under the Curve Meets Rank Correlation},
   author={Walz, Eva-Maria and Eberl, Andreas and Gneiting, Tilmann},
   year={2025},
-  eprint={XXXX.XXXXX},
+  eprint={2510.17994},
   archivePrefix={arXiv},
   primaryClass={stat.ME},
-  url={https://arxiv.org/abs/XXXX.XXXXX}
+  url={https://arxiv.org/abs/2510.17994}
 }
 ```
--->
 
 ## Overview
 
@@ -31,27 +27,28 @@ This repository provides complete reproducibility code for all empirical results
 ```
 paper_monotone_dependence/
 ├── case_study_wb2/       # WeatherBench 2 forecasting model evaluation
-├── case_study_LLM/       # Large Language Model evaluation
+├── case_study_LLM/       # LLM evaluation (JSON in outputs/; paper PDFs in figures/)
 ├── simulation/           # Statistical hypothesis testing simulations
 ├── example/              # Triangle figure for data example
 ├── README.md             # This file
+├── CITATION.cff          # Machine-readable citation (arXiv:2510.17994)
 └── LICENSE               # MIT License
 ```
 
 ## Case Studies
 
 ### [WeatherBench 2](case_study_wb2/)
-A comprehensive evaluation of WeatherBench 2 forecasting models (GraphCast, HRES, and Ensemble forecast) using various metrics including RMSE, accuracy scores, SEEPS, and CMA. 
+A comprehensive evaluation of WeatherBench 2 forecasting models (GraphCast, IFS HRES, and related baselines in the scripts) using shell scripts, Python, and zarr/WeatherBench2 data: RMSE, ACC, SEEPS, CMA, and CID, plus metric plots. The core pipeline uses [`case_study_wb2/requirements.txt`](case_study_wb2/requirements.txt). **CMA/CID** (`compute_cma_cid.py`) and the optional full-grid scripts in [`case_study_wb2/statistical_test/`](case_study_wb2/statistical_test/README.md) need the **acor** package installed in addition—`pip` lines are in the case study README.
 
 **Data and original code**: [WeatherBench 2](https://github.com/google-research/weatherbench2)
 
 ### [LLM Evaluation](case_study_LLM/)
-A case study focusing on the evaluation of Large Language Models using monotone dependence measures.
+Pure **Python** (install [**acor**](https://github.com/evwalz/acor-python) for CMA/CID; see [case_study_LLM/README.md](case_study_LLM/README.md)). Table 1: `run_table.sh` → `create_table.py` → PDFs in **`case_study_LLM/figures/`**. Bootstrap: `run_calibration_bootstrap.sh` → `plot_calibration_bootstrap.py` (scatter PDF in **`figures/`**). JSON stays in **`outputs/`** (ignored by git). Rank-Calibration supplies data and `metrics.calibration` for ERCE.
 
 **Data and original code**: [Rank-Calibration](https://github.com/shuoli90/Rank-Calibration)
 
 ### [Simulation Studies](simulation/)
-Simulated data for statistical hypothesis testing demonstrating properties of monotone dependence measures.
+Monte Carlo evaluation of p-value null distributions (figures 1–3 in the paper): see [`simulation/README.md`](simulation/README.md). The folder is split into [`simulation/agc/`](simulation/agc/) (**Meng** + **global AGC**) and [`simulation/akc/`](simulation/akc/) (**pairwise AKC** + **Zou**), each with its own `run_*.sh` and default `results/` directory. See the simulation README for `python3 -m simulation.agc.plot_p_values` and `python3 -m simulation.akc.plot_p_values`.
 
 ### [Example](example/)
 Triangle figure illustrating monotone dependence on example data.
@@ -104,7 +101,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Citation
 
-Citation information will be added upon publication.
+Use the BibTeX block at the top of this README, or the same reference via [arXiv:2510.17994](https://arxiv.org/abs/2510.17994).
 
 ## Acknowledgments
 

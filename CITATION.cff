@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper below."
+title: "Assessing Monotone Dependence: Area Under the Curve Meets Rank Correlation"
+authors:
+  - family-names: Walz
+    given-names: Eva-Maria
+  - family-names: Eberl
+    given-names: Andreas
+  - family-names: Gneiting
+    given-names: Tilmann
+url: "https://arxiv.org/abs/2510.17994"
+repository-code: "https://github.com/evwalz/paper_monotone_dependence"
+license: MIT
+preferred-citation:
+  type: article
+  title: "Assessing Monotone Dependence: Area Under the Curve Meets Rank Correlation"
+  authors:
+    - family-names: Walz
+      given-names: Eva-Maria
+    - family-names: Eberl
+      given-names: Andreas
+    - family-names: Gneiting
+      given-names: Tilmann
+  year: 2025
+  journal: "arXiv preprint arXiv:2510.17994"
+  url: "https://arxiv.org/abs/2510.17994"

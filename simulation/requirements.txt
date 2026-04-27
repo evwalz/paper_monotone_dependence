@@ -1,0 +1,7 @@
+# p-value simulations: acor (AGC global test via acor_test); install from Git if needed
+numpy>=1.22
+numba>=0.56
+scipy>=1.8
+tqdm>=4.62
+matplotlib>=3.4
+acor @ git+https://github.com/evwalz/acor-python.git

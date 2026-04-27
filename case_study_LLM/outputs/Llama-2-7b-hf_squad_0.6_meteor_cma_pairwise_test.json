@@ -1,0 +1,9 @@
+{
+  "best_method": "ecc_u_agreement",
+  "best_cma": 0.5035001623395384,
+  "second_best_method": "degree_u_agreement",
+  "second_best_cma": 0.4578877184821906,
+  "var_best": 2.964940043395329e-07,
+  "var_second_best": 4.989646031977309e-06,
+  "cov": 2.9802006529201264e-07
+}

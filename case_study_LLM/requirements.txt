@@ -1,0 +1,10 @@
+# case_study_LLM: table + bootstrap + PDFs. Also install Rank-Calibration's requirements
+# in the same venv and export RANK_CALIBRATION_PATH before run_*.sh (for metrics.calibration / data).
+numpy>=1.22
+pandas>=1.3
+tqdm>=4.62
+matplotlib>=3.4
+seaborn>=0.11
+scipy>=1.8
+# CMA / CID (acor); use git until your PyPI workflow is set:
+acor @ git+https://github.com/evwalz/acor-python.git

@@ -1,10 +1,14 @@
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 from matplotlib.patches import Rectangle
-from matplotlib.patches import Patch  # Import Patch for custom legend entries
-from matplotlib.cm import Blues, Purples
 from scipy.stats import norm
 import argparse
+
+from config import FORECAST_NAMES, OUTPUTS_DIR, PLOTS_DIR
+
 
 def create_print_safe_colors_option1_refined():
     """Refined version with better print saturation"""
@@ -47,14 +51,21 @@ background_color = '#fafafa'
 grid_color = '#e0e0e0'
 
 
-def plot_pvals(forecast_name, input_dir):
+def plot_pvals(forecast_name, input_dir, method="cma", output_path=None):
     name_fct1 = forecast_name[0]
     name_fct2 = forecast_name[1]
 
-    cma_fct1 = np.loadtxt(f'{input_dir}/cma_{name_fct1}.txt')
-    cma_fct2 = np.loadtxt(f'{input_dir}/cma_{name_fct2}.txt')
+    est1_path = os.path.join(input_dir, f"{method}_{name_fct1}.txt")
+    est2_path = os.path.join(input_dir, f"{method}_{name_fct2}.txt")
+    var_path = os.path.join(
+        input_dir, f"variance_{method}_{name_fct1}_{name_fct2}.txt"
+    )
+    if not os.path.isfile(var_path):
+        raise FileNotFoundError(f"Missing variance grid: {var_path}")
 
-    S_var = np.loadtxt(f'{input_dir}/variance_{name_fct1}_{name_fct2}.txt')
+    cma_fct1 = np.loadtxt(est1_path)
+    cma_fct2 = np.loadtxt(est2_path)
+    S_var = np.loadtxt(var_path)
     diff = cma_fct1 - cma_fct2
     p_val_single = norm.cdf(diff / np.sqrt(S_var))
 
@@ -256,7 +267,10 @@ def plot_pvals(forecast_name, input_dir):
     ax2.set_ylim(-0.12, 0.12)
     ax2.set_yticks([-0.09,-0.06,-0.03, 0, 0.03,0.060, 0.09])
 
-    ax2.set_ylabel('CMA difference', fontsize=16, color=cma_color)
+    if method == "cma":
+        ax2.set_ylabel("CMA difference", fontsize=16, color=cma_color)
+    else:
+        ax2.set_ylabel("CID difference", fontsize=16, color=cma_color)
     ax2.tick_params(axis='y', colors=cma_color)
     ax2.axhline(0.0, color=cma_color, linestyle='--', linewidth=0.7, alpha=0.5)
 
@@ -280,16 +294,21 @@ def plot_pvals(forecast_name, input_dir):
     handles_ax1, labels_ax1 = ax.get_legend_handles_labels()
     handles_ax2, labels_ax2 = ax2.get_legend_handles_labels()
 
-    # Add CMA rectangle patch for legend
-    cma_rectangle_patch = Patch(facecolor=cma_color, edgecolor=cma_color, 
-                                alpha=0.7, label='IQR CMA differences')
+    if method == "cma":
+        diff_legend = "IQR CMA differences"
+    else:
+        diff_legend = "IQR CID differences"
+    cma_rectangle_patch = Patch(
+        facecolor=cma_color,
+        edgecolor=cma_color,
+        alpha=0.7,
+        label=diff_legend,
+    )
 
-    # Add our rectangle patches to the handles
     handles_all = handles_ax1 + handles_ax2
     handles_all.append(rectangle_patch)
     handles_all.append(cma_rectangle_patch)
-    #labels_all = labels_ax1 + labels_ax2 + ['p-values IQR (25th-75th percentile)', 'CMA diffs IQR (25th-75th percentile)']
-    labels_all = labels_ax1 + labels_ax2 + ['IQR p-values', 'IQR CMA differences']
+    labels_all = labels_ax1 + labels_ax2 + ["IQR p-values", diff_legend]
     
     legend = plt.legend(handles=handles_all, loc = 'upper center', frameon=True, framealpha=0.9, 
                 facecolor=background_color, edgecolor='#95a5a6', fontsize = 12)
@@ -407,19 +426,57 @@ def plot_pvals(forecast_name, input_dir):
         'Percentiles (25th-75th)', ha='center', va='bottom', fontsize=12)
 
     plt.tight_layout()
-    plt.savefig('./p_vals_graphcast_hres.pdf')
+    if output_path is None:
+        output_path = os.path.join(
+            input_dir, f"p_vals_{method}_{name_fct1}_{name_fct2}.pdf"
+        )
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    plt.savefig(output_path)
+    plt.close()
+    print(f"Saved figure to {output_path}")
 
 
 def main():
-    """Main execution function."""
-    parser = argparse.ArgumentParser(description='Description of your program')
-    parser.add_argument('--input_dir', default = './results_testing/', type=str, help='Output file path')
+    parser = argparse.ArgumentParser(
+        description="Latitude summary plot for pairwise CMA/CID (acor-style) grids."
+    )
+    parser.add_argument(
+        "--input_dir",
+        default=OUTPUTS_DIR,
+        type=str,
+        help="Directory with full_grid_acor_test outputs ({method}_*.txt, variance_{method}_*.txt)",
+    )
+    parser.add_argument(
+        "--method",
+        choices=("cma", "cid"),
+        default="cma",
+        help="Which metric filenames to read (must match full_grid_acor_test --method)",
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        type=str,
+        help="Output PDF path (overrides --output_dir)",
+    )
+    parser.add_argument(
+        "--output_dir",
+        default=PLOTS_DIR,
+        type=str,
+        help=(
+            "Directory for PDF when --output is omitted "
+            f"(default: {PLOTS_DIR!r}): "
+            "<output_dir>/p_vals_<method>_<fct1>_<fct2>.pdf"
+        ),
+    )
     args = parser.parse_args()
-    input_dir = args.input_dir
-    forecast_name = ['graphcast_ifs', 'ifs_hres']
-    plot_pvals(forecast_name, input_dir)
-    #input_dir = '/Volumes/My Passport for Mac/cma_testing/results_timeseries/vals/'
-    
+    name_fct1, name_fct2 = FORECAST_NAMES[0], FORECAST_NAMES[1]
+    out_pdf = args.output
+    if out_pdf is None and args.output_dir is not None:
+        out_pdf = os.path.join(
+            args.output_dir, f"p_vals_{args.method}_{name_fct1}_{name_fct2}.pdf"
+        )
+    plot_pvals(FORECAST_NAMES, args.input_dir, method=args.method, output_path=out_pdf)
+
 
 if __name__ == "__main__":
     main()

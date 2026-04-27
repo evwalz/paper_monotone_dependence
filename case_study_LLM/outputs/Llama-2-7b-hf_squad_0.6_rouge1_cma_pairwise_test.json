@@ -1,0 +1,9 @@
+{
+  "best_method": "ecc_u_agreement",
+  "best_cma": 0.4969965710998664,
+  "second_best_method": "entropy_unnormalized",
+  "second_best_cma": 0.45457978906130575,
+  "var_best": 1.5414500462109342e-07,
+  "var_second_best": 6.104205546222742e-06,
+  "cov": 1.228563238515464e-07
+}

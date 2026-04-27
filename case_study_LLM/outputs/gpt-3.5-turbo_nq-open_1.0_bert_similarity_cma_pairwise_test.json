@@ -1,0 +1,9 @@
+{
+  "best_method": "unnormalized_nll_all",
+  "best_cma": 0.7753270453851948,
+  "second_best_method": "spectral_u_agreement",
+  "second_best_cma": 0.7645899395001168,
+  "var_best": 3.5875847302804857e-06,
+  "var_second_best": 3.4448104391454613e-06,
+  "cov": 1.9289415571138016e-06
+}
