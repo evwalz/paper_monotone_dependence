@@ -1,12 +1,21 @@
 """
-Scatter summary of bootstrap calibration bundles (RCE, CMA, CID).
+Scatter summary of bootstrap calibration bundles (RCE, CMA, CID) — Figure 5.
 
 Reads ``*_calibration_bootstrap.json`` from ``compute_calibration_bootstrap.py``
 (CMA/CID from Python **acor**; ERCE from Rank-Calibration), with fallback to
-legacy ``*_cma.json``.
+legacy ``*_cma.json``. Three scatter panels in a 2×2 grid (bottom-left centered).
 """
 
+from __future__ import annotations
+
+import argparse
+import json
 import os
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
 
 _CASE_STUDY_LLM_DIR = os.path.dirname(os.path.abspath(__file__))
 _DEFAULT_LLM_OUTPUT = os.path.join(_CASE_STUDY_LLM_DIR, "outputs")
@@ -14,12 +23,6 @@ _DEFAULT_LLM_PLOTS = os.path.join(_CASE_STUDY_LLM_DIR, "plots")
 _DEFAULT_CALIBRATION_PLOT = os.path.join(
     _DEFAULT_LLM_PLOTS, "calibration_bootstrap_scatter.pdf"
 )
-import numpy as np
-import json
-import argparse
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 
 def _bootstrap_bundle_path(input_dir: str, model: str, data: str, temp: str, metric: str) -> str:
@@ -33,10 +36,8 @@ def _bootstrap_bundle_path(input_dir: str, model: str, data: str, temp: str, met
     return p_new
 
 
-def create_table(metric_type="cma", input_dir="./Rank-Calibration/"):
-    """
-    Aggregate bootstrap JSONs into a table for CMA, ERCE, or CID (cindx).
-    """
+def create_table(metric_type: str = "cma", input_dir: str = "./Rank-Calibration/") -> np.ndarray:
+    """Aggregate bootstrap JSONs into a table for CMA, ERCE, or CID (cindx)."""
     if metric_type == "cma":
         col_table = [
             "ecc_u_agreement_cma",
@@ -95,7 +96,19 @@ def create_table(metric_type="cma", input_dir="./Rank-Calibration/"):
     return np.round(table_vals, 3)
 
 
-def create_scatter_plot(input_dir, output_file):
+def _center_second_row_panel(
+    ax_bottom: plt.Axes, ax_top_left: plt.Axes, ax_top_right: plt.Axes
+) -> None:
+    """After ``tight_layout``, slide the bottom-left 2×2 cell to the row center (unchanged size)."""
+    pos = ax_bottom.get_position()
+    ref = ax_top_left.get_position()
+    row_left = ax_top_left.get_position().x0
+    row_right = ax_top_right.get_position().x1
+    row_center = 0.5 * (row_left + row_right)
+    ax_bottom.set_position([row_center - ref.width / 2, pos.y0, ref.width, pos.height])
+
+
+def create_scatter_plot(input_dir: str, output_file: str) -> None:
     table_vals_cma = create_table("cma", input_dir)
     table_vals_erce = create_table("erce", input_dir)
     table_vals_cid = create_table("cindx", input_dir)
@@ -123,27 +136,32 @@ def create_scatter_plot(input_dir, output_file):
     )
 
     sns.set_theme(style="whitegrid")
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 
-    sns.scatterplot(data=df, x="rce", y="cma", hue="Model", ax=axes[0])
-    axes[0].set_xlabel("RCE")
-    axes[0].set_ylabel("CMA")
+    sns.scatterplot(data=df, x="rce", y="cma", hue="Model", ax=axes[0, 0])
+    axes[0, 0].set_xlabel("RCE")
+    axes[0, 0].set_ylabel("CMA")
 
-    sns.scatterplot(data=df, x="rce", y="cid", hue="Model", ax=axes[1], legend=False)
-    axes[1].set_xlabel("RCE")
-    axes[1].set_ylabel("CID")
+    sns.scatterplot(data=df, x="rce", y="cid", hue="Model", ax=axes[0, 1], legend=False)
+    axes[0, 1].set_xlabel("RCE")
+    axes[0, 1].set_ylabel("CID")
 
-    sns.scatterplot(data=df, x="cid", y="cma", hue="Model", ax=axes[2], legend=False)
-    axes[2].set_xlabel("CID")
-    axes[2].set_ylabel("CMA")
+    sns.scatterplot(data=df, x="cid", y="cma", hue="Model", ax=axes[1, 0], legend=False)
+    axes[1, 0].set_xlabel("CID")
+    axes[1, 0].set_ylabel("CMA")
+
+    axes[1, 1].set_visible(False)
 
     plt.tight_layout()
+    _center_second_row_panel(axes[1, 0], axes[0, 0], axes[0, 1])
     plt.savefig(output_file, bbox_inches="tight")
     plt.close()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Bootstrap calibration scatter (RCE, CMA, CID) — Figure 5"
+    )
     parser.add_argument(
         "--rank_calibration_path",
         type=str,
@@ -170,7 +188,8 @@ if __name__ == "__main__":
         "--output_plot",
         type=str,
         default=_DEFAULT_CALIBRATION_PLOT,
-        help="Path to save the figure (default: case_study_LLM/plots/calibration_bootstrap_scatter.pdf)",
+        help="Path to save the figure (default: "
+        "case_study_LLM/plots/calibration_bootstrap_scatter.pdf)",
     )
     args = parser.parse_args()
 

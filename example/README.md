@@ -22,7 +22,6 @@ python plot_agc_akc_discretization.py
 
 Writes **`agc_akc_discretization_k.pdf`** only (scores stay in memory).
 
-With **`n = 2^20`**, the script performs 120 **`acor`** calls and may take a few minutes.
 
 ## Figure A.1 — Triangle
 
@@ -31,6 +30,6 @@ cd example
 python visualization.py
 ```
 
-Writes **`triangle_visualization.pdf`**. Subpanels are labeled **a)**, **b)**, **c)**.
+Writes **`triangle_visualization.pdf`**.
 
 Requires: `numpy`, `matplotlib`, `seaborn` only.

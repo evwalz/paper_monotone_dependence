@@ -97,8 +97,8 @@ Each subdirectory README contains detailed instructions for reproducing specific
 | **2** | AGC p-value histograms (continuous DGP) | [simulation/agc/](simulation/agc/) |
 | **3** | AGC p-value histograms (discrete DGP) | [simulation/agc/](simulation/agc/) |
 | **4** | AKC + Zou p-value histograms | [simulation/akc/](simulation/akc/) |
-| **5** | LLM calibration scatter (RCE vs CMA/CID) | [case_study_LLM/](case_study_LLM/) |
-| **6** | WeatherBench 2 precipitation metrics | [case_study_wb2/](case_study_wb2/) |
+| **5** | LLM calibration scatter — `plots/calibration_bootstrap_scatter.pdf` | [case_study_LLM/](case_study_LLM/) |
+| **6** | WeatherBench 2 precipitation — `plots/precipitation_skill_scores_lead24h.pdf` | [case_study_wb2/](case_study_wb2/) |
 | **7** | WeatherBench 2 full-grid statistical tests | [case_study_wb2/statistical_test/](case_study_wb2/statistical_test/) |
 | **Table 1** | LLM pairwise CMA/CID tests | [case_study_LLM/](case_study_LLM/) |
 

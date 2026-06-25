@@ -1,74 +1,27 @@
 # LLM case study
 
-Evaluation of large language model calibration using rank-based metrics. This folder sits next to the external [Rank-Calibration](https://github.com/shuoli90/Rank-Calibration) repository: you use their pipeline for scores and calibration JSONs, then run the scripts here for bootstrap bundles, **CMA** / **CID** inference (Python **acor**), PDF tables, and a scatter summary (**Figure 5**).
+Bootstrap calibration and **CMA** / **CID** inference on [Rank-Calibration](https://github.com/shuoli90/Rank-Calibration) data (**Figure 5**, **Table 1**).
 
-**Stack:** everything here is **Python**. The only statistical library you must install yourself for CMA/CID is the **`acor`** package ([acor-python](https://github.com/evwalz/acor-python)). **R is not used.**
+## Setup
 
-## Python dependencies (this folder)
-
-From `case_study_LLM/`:
+From this folder:
 
 ```bash
 pip install -r requirements.txt
+export RANK_CALIBRATION_PATH=/path/to/Rank-Calibration   # clone; see repo root README
 ```
 
-That pins **acor** (from [acor-python](https://github.com/evwalz/acor-python) on GitHub until a stable PyPI install works for you) plus **numpy**, **pandas**, **tqdm**, **matplotlib**, **seaborn**, and **scipy** used by the table and plot scripts. **Rank-Calibration** is still required separately for calibration JSONs and `from metrics import calibration` — install its `requirements.txt` in the same environment, then **export** **`RANK_CALIBRATION_PATH`** (see below) before `run_*.sh`.
+Requires [**acor**](https://github.com/evwalz/acor-python) (in `requirements.txt`) and Rank-Calibration’s own dependencies in the same environment.
 
-`compute_table.py` calls `acor.acor_test` with **`method="cma"`** / **`method="cid"`** explicitly and variance **`"plugin"`** by default (override with **`--variance ij`**), two-sided tests where applicable, etc.
-
-## Setup: Python + Rank-Calibration
-
-1. Clone [Rank-Calibration](https://github.com/shuoli90/Rank-Calibration) and create its environment (see their README):
-
-   ```bash
-   git clone https://github.com/shuoli90/Rank-Calibration.git
-   cd Rank-Calibration
-   python -m venv .venv
-   source .venv/bin/activate   # Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-
-2. In that environment (or another env with the same dependencies), also **`pip install`** **`acor`** as above.
-
-3. Point your environment at the clone: **`export RANK_CALIBRATION_PATH=/path/to/Rank-Calibration`** (the repository root). Then run **`run_table.sh`** / **`run_calibration_bootstrap.sh`**. Python adds that path to `sys.path` so `from metrics import calibration` works for **ERCE** / RCE-style scores (Python code inside Rank-Calibration, not R).
-
-## Workflow
-
-| Step | Command | Output |
-|------|---------|--------|
-| 1 | `run_calibration_bootstrap.sh` → `compute_calibration_bootstrap.py` | `*_calibration_bootstrap.json` in **`case_study_LLM/outputs/`** (20 seeds: `*_erce`, `*_cma`, `*_cindx` per uncertainty indicator; ERCE from Rank-Calibration; CMA/CID from **acor**). |
-| 2 | `python plot_calibration_bootstrap.py` | **Figure 5** — **`plots/calibration_bootstrap_scatter.pdf`** (three panels: RCE vs CMA, RCE vs CID, CID vs CMA; 1×3). |
-| 2b | `python plot_calibration_bootstrap_2x2.py` | **`plots/calibration_bootstrap_scatter_2x2.pdf`** — same three scatter plots in a 2×2 grid. |
-| 3 | `run_table.sh` → `compute_table.py` | `*_cma_stat_test.json`, `*_cma_pairwise_test.json`, `*_cid_stat_test.json`, `*_cid_pairwise_test.json` in **`outputs/`** (acor `acor_test` only). |
-| 4 | `python create_table.py` | **`plots/table_cma.pdf`**, **`plots/table_cid.pdf`** (with pairwise markers; reads JSON from **`outputs/`** by default). |
-
-## Example (from this directory)
-
-With Rank-Calibration data in place (from the same environment where you `pip install -r` this folder and Rank-Calibration):
+## Run
 
 ```bash
-export RANK_CALIBRATION_PATH=/path/to/Rank-Calibration   # your clone, once per shell
-
 ./run_calibration_bootstrap.sh
-python plot_calibration_bootstrap.py
-python plot_calibration_bootstrap_2x2.py   # optional: 2×2 layout
+python plot_calibration_bootstrap.py    # → plots/calibration_bootstrap_scatter.pdf
 
 ./run_table.sh
-python create_table.py
+python create_table.py                  # → plots/table_cma.pdf, plots/table_cid.pdf
 ```
 
-- **`outputs/`** — generated JSON only (large); **`.gitignore`** excludes it from Git — reproduce with the shell scripts above.  
-- **`plots/`** — final **`table_cma.pdf`**, **`table_cid.pdf`**, **`calibration_bootstrap_scatter.pdf`**, and optionally **`calibration_bootstrap_scatter_2x2.pdf`** (intended to be **committed**). Override with `--input_dir` / `--output_dir` / `--output_plot` if you split files elsewhere.
-
-## Acknowledgments
-
-Original calibration framework and data: [Rank-Calibration](https://github.com/shuoli90/Rank-Calibration). Monotone dependence (CMA/CID) via [acor-python](https://github.com/evwalz/acor-python).
-
-## Citation (Rank-Calibration)
-
-```
-Huang, X., Li, S., Yu, M., Sesia, M., Hassani, H., Lee, I., Bastani, O., 
-& Dobriban, E. (2024). Uncertainty in Language Models: Assessment through 
-Rank-Calibration. In Proceedings of the 2024 Conference on Empirical Methods 
-in Natural Language Processing (pp. 284-312).
-```
+- **`outputs/`** — JSON from the shell scripts (gitignored).
+- **`plots/`** — committed paper PDFs.
