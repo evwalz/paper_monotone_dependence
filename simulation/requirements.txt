@@ -1,4 +1,4 @@
-# p-value simulations: acor (AGC global test via acor_test); install from Git if needed
+# p-value simulations: acor (acor_test); install from Git if needed
 numpy>=1.22
 numba>=0.56
 scipy>=1.8

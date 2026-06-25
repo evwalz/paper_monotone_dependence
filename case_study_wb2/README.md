@@ -2,16 +2,20 @@
 
 A Python pipeline for evaluating weather forecast models using WeatherBench2 data.
 
+**Paper figures:** **Figure 6** — precipitation metric plot (`plot_precipitation.py`); **Figure 7** — full-grid statistical tests ([`statistical_test/`](statistical_test/README.md)).
+
 ## Quick Start
 
 Install **`acor`** before running the default shell scripts (they call `compute_cma_cid.py`); see [Acor install](#acor-install) below.
 
 ### Precipitation (24h lead): download → metrics → precip plots
 
-[`run_precip.sh`](run_precip.sh) runs `download_data`, **`compute_cma_cid`** (`--metric both`), **RMSE, ACC, SEEPS**, then **`plot_precipitation`** (five-metric PDFs under `./plots/`).
+[`run_precip.sh`](run_precip.sh) runs `download_data`, **`compute_cma_cid`** (`--metric both`), **RMSE, ACC, SEEPS**, then **`plot_precipitation.py`** (**Figure 6** — five-metric PDFs under `./plots/`; 3×2 layout with SEEPS centered in row 2). Use **`--add_panel_labels`** for paper-style titles (e.g. `a) CMA Skill Score`).
 
 ```bash
 bash run_precip.sh
+# Or plot only (after metrics exist):
+python plot_precipitation.py --input_dir ./fct_data/ --output_dir ./plots/ --skill_scores --add_panel_labels
 ```
 
 ### Four variables (72h lead): download → CMA/CID only → CMA strip plots
@@ -28,7 +32,7 @@ bash run_multi_var.sh
 
 1. **Downloads** forecast data from WeatherBench2 (GraphCast, IFS HRES, Persistence, Climatology)
 2. **Computes** evaluation metrics (RMSE, ACC, CMA, CID, SEEPS). CMA and CID in `compute_cma_cid.py` use the Python [**acor**](https://github.com/evwalz/acor-python) library (`acor(forecast, obs, method=...)`), installed separately from `requirements.txt` (see [Acor install](#acor-install) below).
-3. **Generates** plots — `plot_precipitation.py` writes `precipitation_metrics_lead{N}h.pdf` and/or `precipitation_skill_scores_lead{N}h.pdf` as a **five-metric** figure (RMSE, SEEPS, ACC, CMA, **CID**) in a 2×3 layout, as long as `cindx_results/` exists (run `compute_cma_cid.py` with `--metric both` or `cindx` first). `plot_cma_variables.py` reads **`cma_results/`** only. Both plot scripts load the precomputed **`.txt`** metric files under `--input_dir`. The optional **`statistical_test/`** folder is a **separate** full-grid *hypothesis testing* path (Python `acor_test` from the installed **`acor`** package); it writes under `statistical_test/outputs/` and `statistical_test/plots/` (see [`statistical_test/README.md`](statistical_test/README.md)) and does not feed the main `plot_*.py` flow unless you copy files by hand.
+3. **Generates** plots — `plot_precipitation.py` writes `precipitation_metrics_lead{N}h.pdf` and/or `precipitation_skill_scores_lead{N}h.pdf` as a **five-metric** figure (CMA, CID top; SEEPS centered; RMSE, ACC bottom) in a 3×2 layout, as long as `cindx_results/` exists (run `compute_cma_cid.py` with `--metric both` or `cindx` first). `plot_cma_variables.py` reads **`cma_results/`** only. Both plot scripts load the precomputed **`.txt`** metric files under `--input_dir`. The optional **`statistical_test/`** folder is a **separate** full-grid *hypothesis testing* path (Python `acor_test` from the installed **`acor`** package); it writes under `statistical_test/outputs/` and `statistical_test/plots/` (see [`statistical_test/README.md`](statistical_test/README.md)) and does not feed the main `plot_*.py` flow unless you copy files by hand.
 
 ## Requirements
 

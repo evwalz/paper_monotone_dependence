@@ -26,6 +26,28 @@ def _alternative_for_acor_test(simulation_alternative: str) -> str:
     )
 
 
+def acor_first_pairwise_entry(res: object) -> dict:
+    """
+    First row of ``pairwise_results`` for ``m = 2`` predictors (single X1 vs X2 contrast).
+
+    Simulations use this p-value (not the omnibus ``pvalue``) so ``alternative``
+    (one- vs two-sided) matches the contrast test. For two-sided and ``m = 2``,
+    this typically coincides with the global χ² p-value when the package implements
+    the equivalent single-contrast test.
+    """
+    pr = getattr(res, "pairwise_results", None)
+    if pr is None or len(pr) < 1:
+        raise ValueError(
+            "acor_test: expected non-empty pairwise_results (two predictors)"
+        )
+    row = pr[0]
+    if isinstance(row, dict):
+        return row
+    if hasattr(row, "get"):
+        return row  # type: ignore[return-value]
+    raise TypeError("unexpected pairwise_results entry type")
+
+
 def _one_sample_discrete(n: int, sigma_1: float, sigma_2: float):
     x0 = np.random.normal(0, 1, n)
     z1 = np.random.normal(0, sigma_1, n)

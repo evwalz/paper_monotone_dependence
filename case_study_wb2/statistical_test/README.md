@@ -1,4 +1,4 @@
-# Full-grid CMA/CID statistical testing (WeatherBench 2)
+# Full-grid CMA/CID statistical testing (WeatherBench 2; Figure 7)
 
 ## Install `acor` (required)
 
@@ -34,10 +34,17 @@ The rest of the WeatherBench2 pipeline (without CMA/CID from `compute_cma_cid.py
 | `outputs/` | Grids (`.txt` / `.npz`) from `full_grid_acor_test.py`; listed in **`.gitignore`** — not committed to GitHub. |
 
 ```bash
-# CMA (default) or CID: --method cma | --method cid
-python full_grid_acor_test.py
+cd case_study_wb2/statistical_test
+
+# 1. Full-grid inference (plugin variance by default; method passed explicitly to acor_test)
+python full_grid_acor_test.py --method cma
 python full_grid_acor_test.py --method cid
-python visualization.py   # with the flags you need
+
+# 2. PDFs under plots/ (reads outputs/; --method must match step 1)
+python visualization.py --method cma
+python visualization.py --method cid
 ```
+
+`full_grid_acor_test.py` calls `acor_test(..., method=..., variance=...)` with defaults **`method=cma`** and **`variance=plugin`** (override with `--variance ij`). `visualization.py` only plots saved grids; re-run step 1 if you change variance or method.
 
 `--check_zarr` only loads data and prints shapes (no inference). Performance of `acor` (native vs pure-Python) is determined by the installed `acor` package; see the [acor-python](https://github.com/evwalz/acor-python) README.

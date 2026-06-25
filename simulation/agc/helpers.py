@@ -1,6 +1,7 @@
 """
 Data-generating process for **Meng (1992)** on **Spearman** correlations and the
-**global** test from ``acor.acor_test`` with ``method="agc"``.
+**AGC** ``acor_test`` p-value for the **X1 vs X2 contrast** (first ``pairwise_results``
+row), matching one- vs two-sided via ``alternative``.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from ..calibration_dgp import (
     _one_sample_continuous,
     _one_sample_discrete,
     _alternative_for_acor_test,
+    acor_first_pairwise_entry,
 )
 
 try:
@@ -65,13 +67,15 @@ def pvalue_acor_agc_global(
     x2: np.ndarray,
     *,
     alternative: str = "two.sided",
-    variance: str = "delta",
+    variance: str = "ij",
     conf_level: float = 0.95,
     iid: bool = True,
     fisher: bool = False,
 ) -> float:
     """
-    Global ``acor_test`` p-value with ``method='agc'`` (two predictors vs. one outcome).
+    ``acor_test`` with ``method='agc'`` (two predictors): p-value from the first
+    ``pairwise_results`` row (X1 vs X2 contrast), so ``alternative`` matches the
+    contrast test (not the omnibus χ² ``res.pvalue``).
     """
     y = np.asarray(y, dtype=np.float64).ravel()
     x1 = np.asarray(x1, dtype=np.float64).ravel()
@@ -91,7 +95,7 @@ def pvalue_acor_agc_global(
         fisher=fisher,
         variance=variance,
     )
-    return float(res.pvalue)
+    return float(acor_first_pairwise_entry(res)["pvalue"])
 
 
 def run_simulation_meng_agc(
@@ -99,20 +103,19 @@ def run_simulation_meng_agc(
     T: int = 10_000,
     alternative: str = "two.sided",
     *,
-    variance: str = "delta",
+    variance: str = "ij",
     conf_level: float = 0.95,
     iid: bool = True,
     fisher: bool = False,
 ):
     """
-    Continuous DGP: each replicate = Meng p-value (Spearman) + global ``acor_test`` p-value
-    (AGC, two predictors).
+    Continuous DGP: each replicate = Meng p-value (Spearman) + AGC ``acor_test``
+    contrast p-value (first ``pairwise_results`` row; ``alternative`` applies to both).
     """
     sigma_1 = sigma_2 = 1.0
     ps_meng: list[float] = []
     ps_agc: list[float] = []
     acor_kw = dict(
-        alternative="two.sided",
         variance=variance,
         conf_level=conf_level,
         iid=iid,
@@ -121,7 +124,7 @@ def run_simulation_meng_agc(
 
     for _ in tqdm(range(T), desc=f"n={n}"):
         y0, x1, x2 = _one_sample_continuous(n, sigma_1, sigma_2)
-        p_agc = pvalue_acor_agc_global(y0, x1, x2, **acor_kw)
+        p_agc = pvalue_acor_agc_global(y0, x1, x2, alternative=alternative, **acor_kw)
         p_meng = meng_pvalue_spearman(y0, x1, x2, alternative=alternative)
         ps_meng.append(p_meng)
         ps_agc.append(p_agc)
@@ -140,11 +143,9 @@ def run_simulation_agc(
     iid: bool = True,
     fisher: bool = False,
 ) -> np.ndarray:
-    _ = alternative
     sigma_1 = sigma_2 = 1.0
-    v = variance if variance is not None else "delta"
+    v = variance if variance is not None else "ij"
     acor_kw = dict(
-        alternative="two.sided",
         variance=v,
         conf_level=conf_level,
         iid=iid,
@@ -156,5 +157,7 @@ def run_simulation_agc(
             y0, x1, x2 = _one_sample_discrete(n, sigma_1, sigma_2)
         else:
             y0, x1, x2 = _one_sample_continuous(n, sigma_1, sigma_2)
-        out.append(pvalue_acor_agc_global(y0, x1, x2, **acor_kw))
+        out.append(
+            pvalue_acor_agc_global(y0, x1, x2, alternative=alternative, **acor_kw)
+        )
     return np.array(out)

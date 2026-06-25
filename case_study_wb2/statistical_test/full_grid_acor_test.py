@@ -20,6 +20,7 @@ import xarray as xr
 
 from acor import acor_test
 from config import (  # type: ignore
+    ACOR_VARIANCE_DEFAULT,
     DATA_DIR,
     FORECAST_NAMES,
     LEAD_TIME_HOURS,
@@ -120,7 +121,7 @@ def acor_pairwise_from_python(
     iid: bool = False,
     conf_level: float = 0.95,
     alternative: str = "two.sided",
-    variance: str = "delta",
+    variance: str = ACOR_VARIANCE_DEFAULT,
     fisher: bool = False,
 ):
     y = np.asarray(y, dtype=np.float64).ravel()
@@ -174,7 +175,7 @@ def run_acor_grid(
     iid: bool = False,
     conf_level: float = 0.95,
     alternative: str = "two.sided",
-    variance: str = "delta",
+    variance: str = ACOR_VARIANCE_DEFAULT,
     fisher: bool = False,
     lat_slice: Optional[slice] = None,
     lon_slice: Optional[slice] = None,
@@ -307,7 +308,13 @@ def main():
     parser.add_argument("--iid", action="store_true", help="Pass iid=True to acor_test")
     parser.add_argument("--conf_level", type=float, default=0.95)
     parser.add_argument("--alternative", type=str, default="two.sided")
-    parser.add_argument("--variance", type=str, choices=("delta", "ij"), default="delta")
+    parser.add_argument(
+        "--variance",
+        type=str,
+        choices=("ij", "plugin"),
+        default=ACOR_VARIANCE_DEFAULT,
+        help="acor_test variance (default: plugin)",
+    )
     parser.add_argument("--fisher", action="store_true")
     parser.add_argument("--no_save_txt", action="store_true")
     parser.add_argument("--check_zarr", action="store_true")
@@ -322,6 +329,10 @@ def main():
     if args.check_zarr:
         return
 
+    print(
+        f"Running acor_test grid: method={args.method!r}, variance={args.variance!r}, "
+        f"alternative={args.alternative!r}, iid={args.iid}"
+    )
     run_acor_grid(
         data["fct1"],
         data["fct2"],

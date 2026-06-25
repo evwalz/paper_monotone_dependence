@@ -1,1 +1,1 @@
-"""P-value calibration simulations: see ``agc/`` and ``akc/`` subpackages."""
+"""P-value calibration simulations: ``agc/`` and ``akc/`` subpackages."""

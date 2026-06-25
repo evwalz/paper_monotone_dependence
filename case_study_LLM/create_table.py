@@ -11,7 +11,7 @@ from scipy.stats import norm
 _CASE_STUDY_LLM_DIR = os.path.dirname(os.path.abspath(__file__))
 _DEFAULT_LLM_OUTPUT = os.path.join(_CASE_STUDY_LLM_DIR, "outputs")
 # PDFs default here so they can be committed; JSON inputs stay under outputs/
-_DEFAULT_LLM_FIGURES = os.path.join(_CASE_STUDY_LLM_DIR, "figures")
+_DEFAULT_LLM_PLOTS = os.path.join(_CASE_STUDY_LLM_DIR, "plots")
 
 
 def _col_names_for_metric(table_metric):
@@ -243,8 +243,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_dir",
         type=str,
-        default=_DEFAULT_LLM_FIGURES,
-        help="Where to write table_cma.pdf / table_cid.pdf (default: case_study_LLM/figures/)",
+        default=_DEFAULT_LLM_PLOTS,
+        help="Where to write table_cma.pdf / table_cid.pdf (default: case_study_LLM/plots/)",
     )
     args = parser.parse_args()
 
@@ -258,5 +258,4 @@ if __name__ == "__main__":
             table_vals,
             subscripts,
             out_pdf,
-            title=f"{method.upper()} (acor, Python)",
         )

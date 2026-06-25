@@ -1,3 +1,5 @@
 # Precomputed p-value grids (.npy) and histogram PDFs from run_simulation.sh / plot_p_values.py.
 agc/results/
+agc/plots/
 akc/results/
+akc/plots/

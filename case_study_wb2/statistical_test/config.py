@@ -23,6 +23,9 @@ DATA_DIR = str(_CASE_STUDY_WB2 / "fct_data")
 OUTPUTS_DIR = str(_STATISTICAL_TEST / "outputs")
 PLOTS_DIR = str(_STATISTICAL_TEST / "plots")
 
+# Passed explicitly to ``acor_test(..., method=..., variance=...)`` (see ``full_grid_acor_test.py``).
+ACOR_VARIANCE_DEFAULT = "plugin"
+
 OBS_PATH = str(
     Path(DATA_DIR) / f"era5_obs_{PRECIP_VARIABLE}_2020.zarr"
 )

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Monte Carlo p-value calibration: Meng (1992) on **Spearman** corrs vs. global **AGC**
-test from ``acor.acor_test`` (``method="agc"``; same line as **CMA** in ``acor``, not AKC).
+Monte Carlo p-value calibration: Meng (1992) on **Spearman** corrs vs. **AGC**
+``acor_test`` (``method="agc"``): **contrast** p-value from the first ``pairwise_results``
+row (same one- vs two-sided semantics as ``alternative``).
 
 Saves one ``.npy`` per run under ``--output_dir``; see :mod:`plot_p_values` for histograms.
 """
@@ -27,7 +28,7 @@ def run_single_job(
     alternative: str,
     output_dir: str,
     *,
-    variance: str = "delta",
+    variance: str = "plugin",
     iid: bool = True,
     fisher: bool = False,
 ) -> None:
@@ -73,7 +74,7 @@ def run_single_job(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="P-value simulation: Meng (Spearman) vs global AGC (acor_test) for a single n"
+        description="P-value simulation: Meng (Spearman) vs AGC acor_test contrast (pairwise row) for a single n"
     )
     parser.add_argument("--n", type=int, required=True, help="Sample size")
     parser.add_argument("--T", type=int, default=100_000, help="Number of Monte Carlo replicates")
@@ -87,7 +88,7 @@ def main() -> None:
         type=str,
         default="two.sided",
         choices=["two.sided", "one.sided"],
-        help="Meng only. AGC p-values (acor) always use two.sided, matching R acor.test defaults.",
+        help="Passed to Meng (Spearman) and to ``acor_test`` (AGC contrast p-value from ``pairwise_results``).",
     )
     parser.add_argument(
         "--output_dir",
@@ -98,9 +99,9 @@ def main() -> None:
     parser.add_argument(
         "--variance",
         type=str,
-        default="delta",
-        choices=["delta", "ij"],
-        help="acor_test variance (default: delta, R acor default).",
+        default="plugin",
+        choices=["ij", "plugin"],
+        help="acor_test variance (default: plugin; acor package default is ij if omitted).",
     )
     parser.add_argument(
         "--hac",

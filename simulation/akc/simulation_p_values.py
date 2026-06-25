@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CLI: AKC pairwise p-values (``acor_test``) vs. Zou simple / unbiased / consistent z-tests.
+CLI: AKC ``acor_test`` contrast (``pairwise_results``) p-values vs. Zou simple / unbiased / consistent z-tests.
 
 Mirrors ``akc_pvals_sim.R``; outputs ``.npy`` files under ``--output_dir`` (see
 :mod:`plot_p_values` in this package for PDFs). Naming parallels :mod:`simulation.agc.simulation_p_values`.
@@ -31,7 +31,7 @@ def run_single_job(
     alternative: str,
     output_dir: str,
     *,
-    variance: str = "ij",
+    variance: str = "plugin",
     iid: bool = True,
     fisher: bool = False,
 ) -> None:
@@ -83,9 +83,9 @@ def main() -> None:
     p.add_argument(
         "--variance",
         type=str,
-        default="ij",
-        choices=["delta", "ij"],
-        help="acor_test variance (R reference uses 'ij' for AKC in akc_pvals_sim.R)",
+        default="plugin",
+        choices=["ij", "plugin"],
+        help="acor_test variance (default: plugin; acor package default is ij if omitted)",
     )
     p.add_argument(
         "--hac",

@@ -1,6 +1,7 @@
 """
-Monte Carlo: **AKC** pairwise p-value (``acor_test``, ``method="akc"``) vs. three **Zou**
-variance-based z-tests for the same AKC difference, matching ``akc_pvals_sim.R``.
+Monte Carlo: **AKC** ``acor_test`` contrast p-value (first ``pairwise_results`` row,
+``method="akc"``) vs. three **Zou** variance-based z-tests for the same concordance
+difference.
 
 Mirrors the role of :mod:`simulation.agc.helpers` for the AGC + Meng path.
 """
@@ -10,7 +11,11 @@ import numpy as np
 from scipy.stats import norm
 from tqdm import tqdm
 
-from ..calibration_dgp import _alternative_for_acor_test, sample_calibration_dgp
+from ..calibration_dgp import (
+    _alternative_for_acor_test,
+    acor_first_pairwise_entry,
+    sample_calibration_dgp,
+)
 from .zou_concordance import compute_zou_variances_diff
 
 try:
@@ -31,15 +36,37 @@ def pvalue_from_z(z: float, alternative: str) -> float:
     raise ValueError("alternative must be 'two.sided' or 'one.sided'")
 
 
-def _first_pairwise(res) -> dict:
-    pr = getattr(res, "pairwise_results", None)
-    if pr is None or len(pr) < 1:
-        raise ValueError("acor_test: expected non-empty pairwise_results (m=2 predictors)")
-    if isinstance(pr[0], dict):
-        return pr[0]
-    if hasattr(pr[0], "get"):
-        return pr[0]
-    raise TypeError("unexpected pairwise_results entry type")
+def pvalue_acor_akc(
+    y: np.ndarray,
+    x1: np.ndarray,
+    x2: np.ndarray,
+    *,
+    alternative: str = "two.sided",
+    variance: str = "ij",
+    conf_level: float = 0.95,
+    iid: bool = True,
+    fisher: bool = False,
+) -> float:
+    """``acor_test`` ``method='akc'``: p-value from the first ``pairwise_results`` row."""
+    y = np.asarray(y, dtype=np.float64).ravel()
+    x1 = np.asarray(x1, dtype=np.float64).ravel()
+    x2 = np.asarray(x2, dtype=np.float64).ravel()
+    n = y.size
+    if n < 3 or x1.size != n or x2.size != n:
+        raise ValueError("y, x1, x2 must be same length and n >= 3 for acor_test")
+    x_mat = np.column_stack([x1, x2])
+    alt_acor = _alternative_for_acor_test(alternative)
+    res = acor_test(
+        x_mat,
+        y,
+        method="akc",
+        alternative=alt_acor,
+        conf_level=conf_level,
+        iid=iid,
+        fisher=fisher,
+        variance=variance,
+    )
+    return float(acor_first_pairwise_entry(res)["pvalue"])
 
 
 def run_simulation_akc_zou(
@@ -54,9 +81,9 @@ def run_simulation_akc_zou(
     fisher: bool = False,
 ) -> dict[str, np.ndarray]:
     """
-    Returns arrays ``ps_our`` (``acor`` pairwise p-value), and three Zou p-value streams.
-    R reference uses ``acor.test(..., method = 'akc', variance = 'ij', alternative = ...)`` for
-    the "our" p-value, and the same DGP as the AGC calibration scripts.
+    Returns ``ps_our`` = first ``pairwise_results`` ``pvalue`` from ``acor_test``
+    (``method='akc'``), and three Zou p-value streams from the same row's
+    ``difference`` and Zou variance estimates.
     """
     alt_acor = _alternative_for_acor_test(alternative)
 
@@ -77,10 +104,9 @@ def run_simulation_akc_zou(
         y0, x1, x2 = sample_calibration_dgp(n, discrete=discrete)
         x_mat = np.column_stack([x1, x2])
         res = acor_test(x_mat, y0, **acor_kw)
-        p0 = _first_pairwise(res)
-        p_akc = float(p0["pvalue"])
+        p0 = acor_first_pairwise_entry(res)
+        ps_our.append(float(p0["pvalue"]))
         akc_diff = float(p0["difference"])
-        ps_our.append(p_akc)
 
         zv = compute_zou_variances_diff(x_mat, y0)
         se_s = float(np.sqrt(zv["var_zou_simple"] / n))

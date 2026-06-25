@@ -19,60 +19,65 @@ if [ ! -d "$RANK_CALIBRATION_PATH" ]; then
 fi
 
 file_path="$RANK_CALIBRATION_PATH"
+VARIANCE="${VARIANCE:-plugin}"
+
+run_compute_table () {
+    python compute_table.py --rank_calibration_path "$file_path" --variance "$VARIANCE" "$@"
+}
 
 run_sweep () {
     echo "=================================================================="
-    echo " Running full sweep (Python acor)"
+    echo " Running full sweep (Python acor, variance=$VARIANCE)"
     echo "=================================================================="
 
-    python compute_table.py --rank_calibration_path "$file_path" --correctness bert_similarity
-    python compute_table.py --rank_calibration_path "$file_path" --correctness rouge
-    python compute_table.py --rank_calibration_path "$file_path" --correctness rouge1
-    python compute_table.py --rank_calibration_path "$file_path" --correctness meteor
+    run_compute_table --correctness bert_similarity
+    run_compute_table --correctness rouge
+    run_compute_table --correctness rouge1
+    run_compute_table --correctness meteor
 
-    python compute_table.py --rank_calibration_path "$file_path" --dataset nq-open --correctness bert_similarity
-    python compute_table.py --rank_calibration_path "$file_path" --dataset nq-open --correctness rouge
-    python compute_table.py --rank_calibration_path "$file_path" --dataset nq-open --correctness rouge1
-    python compute_table.py --rank_calibration_path "$file_path" --dataset nq-open --correctness meteor
+    run_compute_table --dataset nq-open --correctness bert_similarity
+    run_compute_table --dataset nq-open --correctness rouge
+    run_compute_table --dataset nq-open --correctness rouge1
+    run_compute_table --dataset nq-open --correctness meteor
 
-    python compute_table.py --rank_calibration_path "$file_path" --dataset squad --correctness bert_similarity
-    python compute_table.py --rank_calibration_path "$file_path" --dataset squad --correctness rouge
-    python compute_table.py --rank_calibration_path "$file_path" --dataset squad --correctness rouge1
-    python compute_table.py --rank_calibration_path "$file_path" --dataset squad --correctness meteor
+    run_compute_table --dataset squad --correctness bert_similarity
+    run_compute_table --dataset squad --correctness rouge
+    run_compute_table --dataset squad --correctness rouge1
+    run_compute_table --dataset squad --correctness meteor
 
-    python compute_table.py --rank_calibration_path "$file_path" --model meta-llama/Llama-2-7b-hf --correctness bert_similarity
-    python compute_table.py --rank_calibration_path "$file_path" --model meta-llama/Llama-2-7b-hf --correctness rouge
-    python compute_table.py --rank_calibration_path "$file_path" --model meta-llama/Llama-2-7b-hf --correctness rouge1
-    python compute_table.py --rank_calibration_path "$file_path" --model meta-llama/Llama-2-7b-hf --correctness meteor
+    run_compute_table --model meta-llama/Llama-2-7b-hf --correctness bert_similarity
+    run_compute_table --model meta-llama/Llama-2-7b-hf --correctness rouge
+    run_compute_table --model meta-llama/Llama-2-7b-hf --correctness rouge1
+    run_compute_table --model meta-llama/Llama-2-7b-hf --correctness meteor
 
-    python compute_table.py --rank_calibration_path "$file_path" --model meta-llama/Llama-2-7b-hf --dataset nq-open --correctness bert_similarity
-    python compute_table.py --rank_calibration_path "$file_path" --model meta-llama/Llama-2-7b-hf --dataset nq-open --correctness rouge
-    python compute_table.py --rank_calibration_path "$file_path" --model meta-llama/Llama-2-7b-hf --dataset nq-open --correctness rouge1
-    python compute_table.py --rank_calibration_path "$file_path" --model meta-llama/Llama-2-7b-hf --dataset nq-open --correctness meteor
+    run_compute_table --model meta-llama/Llama-2-7b-hf --dataset nq-open --correctness bert_similarity
+    run_compute_table --model meta-llama/Llama-2-7b-hf --dataset nq-open --correctness rouge
+    run_compute_table --model meta-llama/Llama-2-7b-hf --dataset nq-open --correctness rouge1
+    run_compute_table --model meta-llama/Llama-2-7b-hf --dataset nq-open --correctness meteor
 
-    python compute_table.py --rank_calibration_path "$file_path" --model meta-llama/Llama-2-7b-hf --dataset squad --correctness bert_similarity
-    python compute_table.py --rank_calibration_path "$file_path" --model meta-llama/Llama-2-7b-hf --dataset squad --correctness rouge
-    python compute_table.py --rank_calibration_path "$file_path" --model meta-llama/Llama-2-7b-hf --dataset squad --correctness rouge1
-    python compute_table.py --rank_calibration_path "$file_path" --model meta-llama/Llama-2-7b-hf --dataset squad --correctness meteor
+    run_compute_table --model meta-llama/Llama-2-7b-hf --dataset squad --correctness bert_similarity
+    run_compute_table --model meta-llama/Llama-2-7b-hf --dataset squad --correctness rouge
+    run_compute_table --model meta-llama/Llama-2-7b-hf --dataset squad --correctness rouge1
+    run_compute_table --model meta-llama/Llama-2-7b-hf --dataset squad --correctness meteor
 
-    python compute_table.py --rank_calibration_path "$file_path" --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset triviaqa --correctness bert_similarity
-    python compute_table.py --rank_calibration_path "$file_path" --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset triviaqa --correctness meteor
-    python compute_table.py --rank_calibration_path "$file_path" --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset triviaqa --correctness rouge
-    python compute_table.py --rank_calibration_path "$file_path" --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset triviaqa --correctness rouge1
+    run_compute_table --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset triviaqa --correctness bert_similarity
+    run_compute_table --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset triviaqa --correctness meteor
+    run_compute_table --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset triviaqa --correctness rouge
+    run_compute_table --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset triviaqa --correctness rouge1
 
-    python compute_table.py --rank_calibration_path "$file_path" --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset squad --correctness bert_similarity
-    python compute_table.py --rank_calibration_path "$file_path" --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset squad --correctness meteor
-    python compute_table.py --rank_calibration_path "$file_path" --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset squad --correctness rouge
-    python compute_table.py --rank_calibration_path "$file_path" --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset squad --correctness rouge1
+    run_compute_table --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset squad --correctness bert_similarity
+    run_compute_table --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset squad --correctness meteor
+    run_compute_table --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset squad --correctness rouge
+    run_compute_table --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset squad --correctness rouge1
 
-    python compute_table.py --rank_calibration_path "$file_path" --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset nq-open --correctness bert_similarity
-    python compute_table.py --rank_calibration_path "$file_path" --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset nq-open --correctness meteor
-    python compute_table.py --rank_calibration_path "$file_path" --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset nq-open --correctness rouge
-    python compute_table.py --rank_calibration_path "$file_path" --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset nq-open --correctness rouge1
+    run_compute_table --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset nq-open --correctness bert_similarity
+    run_compute_table --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset nq-open --correctness meteor
+    run_compute_table --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset nq-open --correctness rouge
+    run_compute_table --model 'meta-llama/gpt-3.5-turbo' --temperature 1.0 --dataset nq-open --correctness rouge1
 }
 
 run_sweep
 
 echo ""
 echo "All done. JSONs:  outputs/"
-echo "Then:  python create_table.py  →  figures/table_cma.pdf  figures/table_cid.pdf"
+echo "Then:  python create_table.py  →  plots/table_cma.pdf  plots/table_cid.pdf"

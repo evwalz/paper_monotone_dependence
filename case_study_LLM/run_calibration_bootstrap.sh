@@ -5,8 +5,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# Set the local Rank-Calibration clone root, e.g.:
-export RANK_CALIBRATION_PATH='folder/to/Rank-Calibration'
+# Requires a local clone of Rank-Calibration. Set the repo root, e.g.:
+#   export RANK_CALIBRATION_PATH=/path/to/Rank-Calibration
 if [ -z "${RANK_CALIBRATION_PATH:-}" ]; then
     echo "Error: RANK_CALIBRATION_PATH is not set."
     echo "  export RANK_CALIBRATION_PATH=/path/to/your/Rank-Calibration  # repository root"
@@ -74,4 +74,4 @@ run_sweep
 
 echo ""
 echo "Done. JSON:  case_study_LLM/outputs/"
-echo "Then:  python plot_calibration_bootstrap.py  →  figures/calibration_bootstrap_scatter.pdf"
+echo "Then:  python plot_calibration_bootstrap.py  →  plots/calibration_bootstrap_scatter.pdf"

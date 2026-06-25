@@ -12,15 +12,15 @@ _DEFAULT_LLM_OUTPUT = os.path.join(_CASE_STUDY_LLM_DIR, "outputs")
 # acor (Python) acor_test for CMA and CID. Tags match prior JSON layout.
 METHODS = ["cma", "cid"]
 
-# Match acor.test-style defaults: IID, variance="delta", alternative="two.sided", etc.
+# Explicit acor_test options (method= is passed per call; variance default plugin for tables).
 ACOR_IID = True
-ACOR_VARIANCE = "delta"
+ACOR_VARIANCE_DEFAULT = "plugin"
 ACOR_ALTERNATIVE = "two.sided"
 ACOR_CONF_LEVEL = 0.95
 ACOR_FISHER = False
 
 
-def _run_py_single(y: np.ndarray, x: np.ndarray, method: str):
+def _run_py_single(y: np.ndarray, x: np.ndarray, method: str, *, variance: str):
     """One predictor: return {"estimate": scalar, "variance": scalar}."""
     from acor import acor_test
 
@@ -33,7 +33,7 @@ def _run_py_single(y: np.ndarray, x: np.ndarray, method: str):
         conf_level=ACOR_CONF_LEVEL,
         iid=ACOR_IID,
         fisher=ACOR_FISHER,
-        variance=ACOR_VARIANCE,
+        variance=variance,
     )
     est_arr = np.asarray(res.estimate, dtype=np.float64).ravel()
     if est_arr.size != 1:
@@ -44,7 +44,7 @@ def _run_py_single(y: np.ndarray, x: np.ndarray, method: str):
     return {"estimate": est, "variance": var}
 
 
-def _run_py_pairwise(y: np.ndarray, x1: np.ndarray, x2: np.ndarray, method: str):
+def _run_py_pairwise(y: np.ndarray, x1: np.ndarray, x2: np.ndarray, method: str, *, variance: str):
     """Two predictors: return {"estimate": [e1,e2], "variance": 2x2 list-of-lists}."""
     from acor import acor_test
 
@@ -62,7 +62,7 @@ def _run_py_pairwise(y: np.ndarray, x1: np.ndarray, x2: np.ndarray, method: str)
         conf_level=ACOR_CONF_LEVEL,
         iid=ACOR_IID,
         fisher=ACOR_FISHER,
-        variance=ACOR_VARIANCE,
+        variance=variance,
     )
     est = np.asarray(res.estimate, dtype=np.float64).ravel()
     if est.size != 2:
@@ -73,7 +73,7 @@ def _run_py_pairwise(y: np.ndarray, x1: np.ndarray, x2: np.ndarray, method: str)
     return {"estimate": est.tolist(), "variance": V.tolist()}
 
 
-def cma_batch(y: np.ndarray, indicators: dict, methods=None):
+def cma_batch(y: np.ndarray, indicators: dict, methods=None, *, variance: str):
     """Run CMA and CID on uncertainty indicators vs correctness (acor in Python)."""
     if methods is None:
         methods = METHODS
@@ -83,7 +83,7 @@ def cma_batch(y: np.ndarray, indicators: dict, methods=None):
         single_results = {}
         est_vals = np.empty(len(indicator_names), dtype=np.float64)
         for i, nm in enumerate(indicator_names):
-            res = _run_py_single(y, indicators[nm], m)
+            res = _run_py_single(y, indicators[nm], m, variance=variance)
             single_results[nm] = res
             est_vals[i] = res["estimate"]
 
@@ -92,7 +92,7 @@ def cma_batch(y: np.ndarray, indicators: dict, methods=None):
         second_best_name = indicator_names[sorted_idx[1]]
 
         pw = _run_py_pairwise(
-            y, indicators[best_name], indicators[second_best_name], m
+            y, indicators[best_name], indicators[second_best_name], m, variance=variance
         )
         out[m] = {
             "single_results": single_results,
@@ -162,6 +162,13 @@ if __name__ == "__main__":
         default="cma",
         choices=["cma", "erce"],
         help="Metric to use for visualization (CMA or ERCE)",
+    )
+    parser.add_argument(
+        "--variance",
+        type=str,
+        default=ACOR_VARIANCE_DEFAULT,
+        choices=["ij", "plugin"],
+        help="acor_test variance (default: plugin)",
     )
     args = parser.parse_args()
 
@@ -301,9 +308,12 @@ if __name__ == "__main__":
 
     print(
         f"Calling acor (Python) for CMA and CID on "
-        f"{len(indicator_data)} indicators over n={len(correctness_scores)} samples..."
+        f"{len(indicator_data)} indicators over n={len(correctness_scores)} samples "
+        f"(variance={args.variance!r})..."
     )
-    batch_result = cma_batch(correctness_scores, indicator_data, methods=METHODS)
+    batch_result = cma_batch(
+        correctness_scores, indicator_data, methods=METHODS, variance=args.variance
+    )
 
     n = len(correctness_scores)
 

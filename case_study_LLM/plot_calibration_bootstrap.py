@@ -10,9 +10,9 @@ import os
 
 _CASE_STUDY_LLM_DIR = os.path.dirname(os.path.abspath(__file__))
 _DEFAULT_LLM_OUTPUT = os.path.join(_CASE_STUDY_LLM_DIR, "outputs")
-_DEFAULT_LLM_FIGURES = os.path.join(_CASE_STUDY_LLM_DIR, "figures")
+_DEFAULT_LLM_PLOTS = os.path.join(_CASE_STUDY_LLM_DIR, "plots")
 _DEFAULT_CALIBRATION_PLOT = os.path.join(
-    _DEFAULT_LLM_FIGURES, "calibration_bootstrap_scatter.pdf"
+    _DEFAULT_LLM_PLOTS, "calibration_bootstrap_scatter.pdf"
 )
 import numpy as np
 import json
@@ -170,7 +170,7 @@ if __name__ == "__main__":
         "--output_plot",
         type=str,
         default=_DEFAULT_CALIBRATION_PLOT,
-        help="Path to save the figure (default: case_study_LLM/figures/calibration_bootstrap_scatter.pdf)",
+        help="Path to save the figure (default: case_study_LLM/plots/calibration_bootstrap_scatter.pdf)",
     )
     args = parser.parse_args()
 

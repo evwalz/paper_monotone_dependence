@@ -1,35 +1,36 @@
 # Assessing Monotone Dependence: Area Under the Curve Meets Rank Correlation
 
-Eva-Maria Walz, Andreas Eberl, Tilmann Gneiting
-
 **Preprint:** [arXiv:2510.17994](https://arxiv.org/abs/2510.17994)
 
-If you use this code in your research, please cite:
-
-```bibtex
-@article{walz2025monotone,
-  title={Assessing Monotone Dependence: Area Under the Curve Meets Rank Correlation},
-  author={Walz, Eva-Maria and Eberl, Andreas and Gneiting, Tilmann},
-  year={2025},
-  eprint={2510.17994},
-  archivePrefix={arXiv},
-  primaryClass={stat.ME},
-  url={https://arxiv.org/abs/2510.17994}
-}
-```
 
 ## Overview
 
-This repository provides complete reproducibility code for all empirical results in the paper. Each case study is self-contained with its own README, data sources, and dependencies.
+This repository provides code for all empirical results in the paper. Each case study is self-contained with its own README, data sources, and dependencies.
+
+## Prerequisites (all case studies using CMA / CID / AGC / AKC)
+
+Install the Python [**acor**](https://github.com/evwalz/acor-python) package **once** in your environment (not listed in every `requirements.txt`):
+
+```bash
+pip install "git+https://github.com/evwalz/acor-python.git"
+```
+
+**External data** (not in this repo):
+
+- **[WeatherBench 2](case_study_wb2/)** — zarr forecasts/obs under `case_study_wb2/fct_data/` via `download_data.py` (see WB2 README).
+- **[LLM / Rank-Calibration](case_study_LLM/)** — clone [Rank-Calibration](https://github.com/shuoli90/Rank-Calibration), then before `run_*.sh`:
+  ```bash
+  export RANK_CALIBRATION_PATH=/path/to/Rank-Calibration
+  ```
 
 ## Repository Structure
 
 ```
 paper_monotone_dependence/
 ├── case_study_wb2/       # WeatherBench 2 forecasting model evaluation
-├── case_study_LLM/       # LLM evaluation (JSON in outputs/; paper PDFs in figures/)
+├── case_study_LLM/       # LLM evaluation (JSON in outputs/; paper PDFs in plots/)
 ├── simulation/           # Statistical hypothesis testing simulations
-├── example/              # Triangle figure for data example
+├── example/              # Figure 1 (discretization) + Figure A.1 (triangle)
 ├── README.md             # This file
 ├── CITATION.cff          # Machine-readable citation (arXiv:2510.17994)
 └── LICENSE               # MIT License
@@ -38,20 +39,20 @@ paper_monotone_dependence/
 ## Case Studies
 
 ### [WeatherBench 2](case_study_wb2/)
-A comprehensive evaluation of WeatherBench 2 forecasting models (GraphCast, IFS HRES, and related baselines in the scripts) using shell scripts, Python, and zarr/WeatherBench2 data: RMSE, ACC, SEEPS, CMA, and CID, plus metric plots. The core pipeline uses [`case_study_wb2/requirements.txt`](case_study_wb2/requirements.txt). **CMA/CID** (`compute_cma_cid.py`) and the optional full-grid scripts in [`case_study_wb2/statistical_test/`](case_study_wb2/statistical_test/README.md) need the **acor** package installed in addition—`pip` lines are in the case study README.
+Evaluation of WeatherBench 2 forecasting models (GraphCast, IFS HRES, and related baselines in the scripts) using RMSE, ACC, SEEPS, CMA, CID, and full-grid CMA/CID statistical tests.
 
 **Data and original code**: [WeatherBench 2](https://github.com/google-research/weatherbench2)
 
 ### [LLM Evaluation](case_study_LLM/)
-Pure **Python** (install [**acor**](https://github.com/evwalz/acor-python) for CMA/CID; see [case_study_LLM/README.md](case_study_LLM/README.md)). Table 1: `run_table.sh` → `create_table.py` → PDFs in **`case_study_LLM/figures/`**. Bootstrap: `run_calibration_bootstrap.sh` → `plot_calibration_bootstrap.py` (scatter PDF in **`figures/`**). JSON stays in **`outputs/`** (ignored by git). Rank-Calibration supplies data and `metrics.calibration` for ERCE.
+LLM calibration with RCE (ERCE), CMA, and CID on Rank-Calibration data; bootstrap scatter and pairwise inference tables.
 
 **Data and original code**: [Rank-Calibration](https://github.com/shuoli90/Rank-Calibration)
 
 ### [Simulation Studies](simulation/)
-Monte Carlo evaluation of p-value null distributions (figures 1–3 in the paper): see [`simulation/README.md`](simulation/README.md). The folder is split into [`simulation/agc/`](simulation/agc/) (**Meng** + **global AGC**) and [`simulation/akc/`](simulation/akc/) (**pairwise AKC** + **Zou**), each with its own `run_*.sh` and default `results/` directory. See the simulation README for `python3 -m simulation.agc.plot_p_values` and `python3 -m simulation.akc.plot_p_values`.
+Histogram of p-value null distributions. 
 
 ### [Example](example/)
-Triangle figure illustrating monotone dependence on example data.
+Synthetic illustrations from the paper (Figures 1 and A.1).
 
 ---
 
@@ -89,19 +90,23 @@ Navigate to the specific directory and follow the setup instructions in the loca
 
 Each subdirectory README contains detailed instructions for reproducing specific figures and tables from the paper:
 
-- **Figure A1**: See [example/](example/)
-- **Figures 1-3**: See [simulation/](simulation/)
-- **Figure 4 & Table 1**: See [case_study_LLM/](case_study_LLM/)
-- **Figure 5-6**: See [case_study_wb2/](case_study_wb2/)
+| Figure | Content | Location |
+|--------|---------|----------|
+| **1** | AGC/AKC vs discretization *k* | [example/](example/) |
+| **A.1** | Triangle visualization | [example/](example/) |
+| **2** | AGC p-value histograms (continuous DGP) | [simulation/agc/](simulation/agc/) |
+| **3** | AGC p-value histograms (discrete DGP) | [simulation/agc/](simulation/agc/) |
+| **4** | AKC + Zou p-value histograms | [simulation/akc/](simulation/akc/) |
+| **5** | LLM calibration scatter (RCE vs CMA/CID) | [case_study_LLM/](case_study_LLM/) |
+| **6** | WeatherBench 2 precipitation metrics | [case_study_wb2/](case_study_wb2/) |
+| **7** | WeatherBench 2 full-grid statistical tests | [case_study_wb2/statistical_test/](case_study_wb2/statistical_test/) |
+| **Table 1** | LLM pairwise CMA/CID tests | [case_study_LLM/](case_study_LLM/) |
 
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Citation
-
-Use the BibTeX block at the top of this README, or the same reference via [arXiv:2510.17994](https://arxiv.org/abs/2510.17994).
 
 ## Acknowledgments
 
